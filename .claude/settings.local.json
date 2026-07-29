@@ -45,7 +45,9 @@
       "Bash(curl -sS -o /dev/null -w 'GET /  -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)",
       "Bash(curl -sS -o /dev/null -w 'GET /          -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)",
       "Bash(python -m py_compile probe/probe_mcp.py)",
-      "Bash(curl -sS -o /dev/null -w 'UI  -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)"
+      "Bash(curl -sS -o /dev/null -w 'UI  -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)",
+      "Bash(awk '{print \"  \"$5\"  \"$9}')",
+      "Bash(curl -sS -o /dev/null -w \"  UI HTTP %{http_code}\\\\n\" http://127.0.0.1:8080/ --max-time 10)"
     ]
   }
 }

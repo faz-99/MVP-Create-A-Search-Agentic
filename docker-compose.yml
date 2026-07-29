@@ -1,0 +1,68 @@
+# =============================================================================
+# AI Create Search — docker-compose
+# =============================================================================
+# Run:        docker compose up -d
+# Stop:       docker compose down
+# Logs:       docker compose logs -f create-search
+# Rebuild:    docker compose build --no-cache      (after requirements change)
+# Shell:      docker compose exec create-search bash
+# One-off:    docker compose run --rm create-search python -m probe.probe_mcp
+# =============================================================================
+
+services:
+  create-search:
+    build: .
+    image: create-search-ai:latest
+    container_name: create-search
+
+    # Host : container. Change the LEFT side to whatever the host has free; the
+    # right side must stay 8080 to match EXPOSE and APP_PORT below.
+    ports:
+      - "8080:8080"
+
+    # Supplies LEXIS_SSO_COOKIE and, on the deploy target, the OpenAI-compatible
+    # endpoint credentials. Must exist before `up` — copy from .env.example.
+    # docker-compose strips surrounding quotes from values automatically.
+    env_file:
+      - .env
+
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8080"
+
+      # Which AWS profile boto3 should use for Bedrock. Must name a profile that
+      # exists in the mounted credentials file below.
+      AWS_PROFILE: "${AWS_PROFILE:-intelligize-dev}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+
+      # Python writes .pyc into the read-only-ish image layer otherwise, and
+      # unbuffered output means `docker compose logs -f` is live rather than
+      # showing nothing until a buffer flushes.
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    volumes:
+      # Captured runs (payload + result per call) persist across rebuilds.
+      - ./out:/app/out
+
+      # Makes the host's AWS profiles visible to boto3 inside the container,
+      # read-only — the credentials file itself never leaves the host and is
+      # never copied into the image. Works on Linux (${HOME}) and Windows
+      # (${USERPROFILE}); Docker Desktop translates Windows paths.
+      #
+      # On EC2/ECS, drop this mount and use an instance/task role instead — boto3
+      # picks that up with no further configuration.
+      - ${HOME:-${USERPROFILE}}/.aws:/home/searchagent/.aws:ro
+
+    restart: unless-stopped
+
+    # `/` is served from static files and does not touch the MCP server, so this
+    # probe reports process health without depending on an upstream that is known
+    # to return intermittent 503s from unhealthy pods. Probing /api/tools instead
+    # would mark the container unhealthy for someone else's outage.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/').status==200 else 1)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

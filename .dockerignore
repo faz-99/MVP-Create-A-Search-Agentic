@@ -1,0 +1,47 @@
+# Files NOT to copy into the image.
+
+# The reference project lives inside this repo purely as a reading aid. It is a
+# different application with its own deps — shipping it would bloat the image and
+# put a second app's source in our container. Excluded first because it is the
+# largest and least obvious thing here.
+Reference/
+
+# Local virtual envs — deps are installed fresh inside the image
+.venv/
+venv/
+env/
+
+# Python bytecode / caches — regenerated on first import
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Captured runs — runtime output, persisted via the /app/out volume mount rather
+# than baked into the image. Never ship someone's local run history.
+out/
+
+# Secrets — supplied at runtime via env_file in docker-compose.yml
+.env
+.env.local
+.env.*.local
+
+# AWS credentials are mounted read-only from the host, never copied in
+.aws/
+
+# Reference PDFs etc. — not needed at runtime
+docs/
+
+# IDE / editor / OS junk
+.claude/
+.vscode/
+.idea/
+.git/
+.gitignore
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
