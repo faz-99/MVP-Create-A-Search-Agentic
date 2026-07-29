@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Create Search</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #fff; --border: #e3e1dd; --text: #23211e;
+    --muted: #6f6a63; --accent: #3d5a8a; --accent-fg: #fff;
+    --code-bg: #f5f4f1; --warn: #8a4b2a; --ok: #2f6a4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181a; --panel: #1d2023; --border: #31363b; --text: #e6e4e1;
+      --muted: #9a948c; --accent: #7ea3d8; --accent-fg: #16181a;
+      --code-bg: #141618; --warn: #d9976a; --ok: #7cc9a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 .25rem; font-weight: 620; }
+  .sub { color: var(--muted); margin: 0 0 1.75rem; font-size: .9rem; }
+  section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+  }
+  h2 {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 .7rem; font-weight: 650;
+  }
+  textarea, input[type=text] {
+    width: 100%; background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px; padding: .65rem .75rem;
+    font: inherit; resize: vertical;
+  }
+  textarea.mono { font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: .8rem; }
+  button {
+    background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 7px;
+    padding: .55rem 1.05rem; font: inherit; font-weight: 550; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: .42; cursor: not-allowed; }
+  fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: .9rem; align-items: center; }
+  fieldset label { display: flex; gap: .35rem; align-items: center; cursor: pointer; font-size: .9rem; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 7px;
+    padding: .75rem .85rem; margin: 0; overflow-x: auto; white-space: pre-wrap;
+    font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .thinking { color: var(--muted); font-style: italic; max-height: 17rem; overflow-y: auto; }
+  .status { color: var(--muted); font-size: .87rem; }
+  .hidden { display: none; }
+  .tools { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .tool {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 999px;
+    padding: .16rem .6rem; font: 12px ui-monospace, Consolas, monospace;
+  }
+  .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .gate { color: var(--muted); font-size: .84rem; margin-top: .55rem; }
+  details summary { cursor: pointer; color: var(--muted); font-size: .84rem; }
+  label.field { display: block; font-size: .84rem; color: var(--muted); margin: .9rem 0 .35rem; }
+  .steps-wrap { overflow-x: auto; }
+  table.steps { border-collapse: collapse; width: 100%; font-size: .86rem; }
+  table.steps th, table.steps td {
+    text-align: left; padding: .34rem .6rem; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.steps th { color: var(--muted); font-weight: 600; font-size: .78rem;
+    text-transform: uppercase; letter-spacing: .05em; }
+  table.steps td.num { text-align: right; font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, Consolas, monospace; }
+  table.steps td.name { font-family: ui-monospace, Consolas, monospace; }
+  table.steps tr.total td { font-weight: 650; border-top: 2px solid var(--border);
+    border-bottom: 0; }
+  .kind { font-size: .72rem; padding: .08rem .4rem; border-radius: 4px;
+    background: var(--code-bg); border: 1px solid var(--border); }
+  .tiles { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: .8rem; }
+  .tile { background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: .5rem .8rem; min-width: 6.5rem; }
+  .tile .v { font-size: 1.15rem; font-weight: 620; font-variant-numeric: tabular-nums; }
+  .tile .k { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .05em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Create Search</h1>
+  <p class="sub">
+    Creates a search and the instructions for analysing its results. Nothing runs
+    against the search API until you click Run.
+  </p>
+
+  <section>
+    <h2>Query</h2>
+    <textarea id="query" rows="3" placeholder="e.g. 10-K filings since 2023 that mention goodwill impairment"></textarea>
+    <div class="row">
+      <fieldset id="provider">
+        <label><input type="radio" name="provider" value="claude" checked> Claude SDK</label>
+        <label><input type="radio" name="provider" value="openai"> OpenAI SDK</label>
+      </fieldset>
+      <button id="build">Create search</button>
+      <span id="build-status" class="status"></span>
+    </div>
+  </section>
+
+  <section id="thinking-section" class="hidden">
+    <h2>Thinking</h2>
+    <pre id="thinking" class="thinking"></pre>
+  </section>
+
+  <section id="tools-section" class="hidden">
+    <h2>Tool calls</h2>
+    <div id="tools" class="tools"></div>
+  </section>
+
+  <section id="reply-section" class="hidden">
+    <h2>Agent</h2>
+    <pre id="reply"></pre>
+  </section>
+
+  <section id="steps-section" class="hidden">
+    <h2>Steps</h2>
+    <div id="tiles" class="tiles"></div>
+    <div class="steps-wrap">
+      <table class="steps">
+        <thead>
+          <tr><th>#</th><th>Kind</th><th>Step</th><th>Detail</th>
+              <th style="text-align:right">Time</th>
+              <th style="text-align:right">In</th>
+              <th style="text-align:right">Out</th></tr>
+        </thead>
+        <tbody id="steps-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="plan-section" class="hidden">
+    <h2>Created search</h2>
+    <div id="plan-warnings"></div>
+
+    <label class="field" for="tool">Search tool this runs against</label>
+    <input id="tool" type="text" readonly>
+
+    <label class="field" for="payload">Search to run — editable before you run it</label>
+    <textarea id="payload" class="mono" rows="12"></textarea>
+
+    <label class="field" for="instructions">Analysis instructions — editable</label>
+    <textarea id="instructions" rows="7"></textarea>
+
+    <div class="row">
+      <button id="run">Run search</button>
+      <span id="run-status" class="status"></span>
+    </div>
+    <p class="gate">
+      This is the only action that calls the search API. Nothing above this point ran it.
+    </p>
+  </section>
+
+  <section id="results-section" class="hidden">
+    <h2>Results</h2>
+    <details open>
+      <summary id="results-summary">Raw results</summary>
+      <pre id="results"></pre>
+    </details>
+    <div class="row">
+      <button id="analyze">Run analysis instructions</button>
+      <span id="analyze-status" class="status"></span>
+    </div>
+  </section>
+
+  <section id="analysis-section" class="hidden">
+    <h2>Analysis</h2>
+    <pre id="analysis"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (id) => $(id).classList.remove("hidden");
+const hide = (id) => $(id).classList.add("hidden");
+const provider = () => document.querySelector('input[name="provider"]:checked').value;
+
+let lastResults = null;
+
+/** POST JSON, then consume the SSE-framed response body via fetch streaming.
+ *  EventSource is GET-only, so it can't carry the request body. */
+async function streamPost(url, body, onEvent) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`${url} -> HTTP ${response.status}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop();
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (line) onEvent(JSON.parse(line.slice(5).trim()));
+    }
+  }
+}
+
+// --- phase 1: build ---------------------------------------------------------
+
+$("build").addEventListener("click", async () => {
+  const query = $("query").value.trim();
+  if (!query) return;
+
+  for (const id of ["thinking-section", "tools-section", "reply-section",
+                    "steps-section", "plan-section", "results-section",
+                    "analysis-section"]) hide(id);
+  $("steps-body").innerHTML = "";
+  $("tiles").innerHTML = "";
+  $("thinking").textContent = "";
+  $("reply").textContent = "";
+  $("tools").innerHTML = "";
+  $("plan-warnings").innerHTML = "";
+  lastResults = null;
+
+  $("build").disabled = true;
+  $("build-status").textContent = "working…";
+
+  try {
+    await streamPost("/api/build", { query, provider: provider() }, (event) => {
+      switch (event.type) {
+        case "status":
+          $("build-status").textContent = event.text;
+          break;
+        case "thinking":
+          show("thinking-section");
+          $("thinking").textContent += event.text;
+          $("thinking").scrollTop = $("thinking").scrollHeight;
+          break;
+        case "text":
+          show("reply-section");
+          $("reply").textContent += event.text;
+          break;
+        case "invalid":
+          show("reply-section");
+          $("reply").textContent += `
+[schema error] ${event.text}
+`;
+          break;
+        case "tool": {
+          show("tools-section");
+          const chip = document.createElement("span");
+          chip.className = "tool";
+          chip.textContent = event.name;
+          $("tools").appendChild(chip);
+          break;
+        }
+        case "step":
+          addStep(event);
+          break;
+        case "metrics":
+          renderTotals(event);
+          break;
+        case "plan":
+          renderPlan(event.plan);
+          break;
+        case "error":
+          $("build-status").innerHTML = `<span class="warn">${escapeHtml(event.message)}</span>`;
+          break;
+        case "done":
+          if ($("build-status").textContent === "working…"
+              || $("build-status").textContent.endsWith("…")) {
+            $("build-status").textContent = "";
+          }
+          break;
+      }
+    });
+  } catch (err) {
+    $("build-status").innerHTML = `<span class="warn">${escapeHtml(err.message)}</span>`;
+  } finally {
+    $("build").disabled = false;
+  }
+});
+
+const fmtMs = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : ms + " ms");
+const fmtNum = (n) => (n ? n.toLocaleString() : "");
+
+function addStep(step) {
+  show("steps-section");
+  const row = document.createElement("tr");
+  row.innerHTML = `
+    <td class="num">${step.step}</td>
+    <td><span class="kind">${escapeHtml(step.kind)}</span></td>
+    <td class="name">${escapeHtml(step.label)}</td>
+    <td>${escapeHtml(step.detail || "")}</td>
+    <td class="num">${fmtMs(step.ms)}</td>
+    <td class="num">${fmtNum(step.input_tokens)}</td>
+    <td class="num">${fmtNum(step.output_tokens)}</td>`;
+  $("steps-body").appendChild(row);
+}
+
+function renderTotals(m) {
+  show("steps-section");
+
+  const row = document.createElement("tr");
+  row.className = "total";
+  row.innerHTML = `
+    <td></td><td></td>
+    <td class="name">total</td>
+    <td>${m.model_calls} model / ${m.tool_calls} tool</td>
+    <td class="num">${fmtMs(m.total_ms)}</td>
+    <td class="num">${fmtNum(m.input_tokens)}</td>
+    <td class="num">${fmtNum(m.output_tokens)}</td>`;
+  $("steps-body").appendChild(row);
+
+  // Wall-clock minus model minus tool is our own overhead (parsing, validation,
+  // serialisation) — worth showing separately so it can't hide inside a total.
+  const overhead = Math.max(0, m.total_ms - m.model_ms - m.tool_ms);
+  const tiles = [
+    ["Total", fmtMs(m.total_ms)],
+    ["Model", fmtMs(m.model_ms)],
+    ["Tools", fmtMs(m.tool_ms)],
+    ["Overhead", fmtMs(overhead)],
+    ["Tokens in", fmtNum(m.input_tokens) || "0"],
+    ["Tokens out", fmtNum(m.output_tokens) || "0"],
+  ];
+  $("tiles").innerHTML = tiles
+    .map(([k, v]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`)
+    .join("");
+}
+
+function renderPlan(plan) {
+  show("plan-section");
+  const warnings = [];
+
+  if (plan.parse_error) {
+    warnings.push(`Could not read the created search: ${plan.parse_error}`);
+  }
+  if (plan.validation_errors?.length) {
+    warnings.push("Payload does not match the tool schema — Run is disabled:");
+    plan.validation_errors.forEach((e) => warnings.push("    " + e));
+  } else if (!plan.runnable) {
+    warnings.push("No runnable search was produced — Run is disabled.");
+  }
+  if (plan.assumptions?.length) {
+    warnings.push("Assumptions: " + plan.assumptions.join(" · "));
+  }
+  if (plan.notes) warnings.push("Notes: " + plan.notes);
+
+  $("plan-warnings").innerHTML = warnings
+    .map((w) => `<p class="gate warn">${escapeHtml(w)}</p>`)
+    .join("");
+
+  $("tool").value = plan.tool || "(none named)";
+  $("payload").value = plan.payload ? JSON.stringify(plan.payload, null, 2) : "";
+  $("instructions").value = plan.analysis_instructions || "";
+  $("run").disabled = !plan.runnable;
+}
+
+// --- phase 2: run (the gate) ------------------------------------------------
+
+$("run").addEventListener("click", async () => {
+  let payload;
+  try {
+    payload = JSON.parse($("payload").value);
+  } catch (err) {
+    $("run-status").innerHTML = `<span class="warn">Payload is not valid JSON: ${escapeHtml(err.message)}</span>`;
+    return;
+  }
+
+  $("run").disabled = true;
+  $("run-status").textContent = "running search…";
+  hide("analysis-section");
+
+  try {
+    const response = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool: $("tool").value, payload }),
+    });
+    const data = await response.json();
+
+    if (!data.ok) {
+      $("run-status").innerHTML = `<span class="warn">${escapeHtml(data.error || "Search failed.")}</span>`;
+      if (data.result) {
+        show("results-section");
+        $("results").textContent = JSON.stringify(data.result, null, 2);
+      }
+      return;
+    }
+
+    lastResults = data.result;
+    show("results-section");
+    $("results-summary").textContent = `Raw results — via ${data.tool}`;
+    $("results").textContent = JSON.stringify(data.result, null, 2);
+    $("run-status").innerHTML = `<span class="ok">done</span>`;
+    $("analyze").disabled = false;
+  } catch (err) {
+    $("run-status").innerHTML = `<span class="warn">${escapeHtml(err.message)}</span>`;
+  } finally {
+    $("run").disabled = false;
+  }
+});
+
+// --- phase 3: analyze -------------------------------------------------------
+// Forwards to the existing analysis API via the seam in shared/analysis.py.
+// No prompt or model call lives on this path.
+
+$("analyze").addEventListener("click", async () => {
+  if (lastResults === null) return;
+
+  let payload;
+  try {
+    payload = JSON.parse($("payload").value);
+  } catch {
+    payload = $("payload").value;
+  }
+
+  show("analysis-section");
+  $("analysis").textContent = "";
+  $("analyze").disabled = true;
+  $("analyze-status").textContent = "sending to analysis API…";
+
+  try {
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payload,
+        results: lastResults,
+        analysis_instructions: $("instructions").value,
+      }),
+    });
+    const data = await response.json();
+
+    if (!data.ok) {
+      $("analyze-status").innerHTML = `<span class="warn">not available</span>`;
+      $("analysis").textContent = data.error || "Analysis failed.";
+      return;
+    }
+
+    $("analyze-status").innerHTML = `<span class="ok">done</span>`;
+    $("analysis").textContent =
+      typeof data.output === "string" ? data.output : JSON.stringify(data.output, null, 2);
+  } catch (err) {
+    $("analyze-status").innerHTML = `<span class="warn">${escapeHtml(err.message)}</span>`;
+  } finally {
+    $("analyze").disabled = false;
+  }
+});
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
+$("query").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) $("build").click();
+});
+</script>
+</body>
+</html>

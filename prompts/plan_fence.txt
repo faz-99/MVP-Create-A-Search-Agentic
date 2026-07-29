@@ -1,0 +1,17 @@
+Finish your reply with a single fenced JSON block, and nothing after it:
+
+```json
+{
+  "tool": "the name of the search tool this search runs against",
+  "payload": { ... the exact arguments for that tool, ready to run ... },
+  "analysis_instructions": "... instructions for analysing the results ...",
+  "assumptions": ["..."],
+  "notes": "anything the operator should know before running this"
+}
+```
+
+`tool` must be the exact name of one of the search tools, spelled as the server advertises it. There is no single generic search — each dataset has its own, and choosing the right one is part of the task. If the request spans datasets that cannot be covered by one search, say so and create the search for the primary dataset, noting the gap.
+
+`payload` must be the real arguments for that named tool, valid as-is against its input schema — not a sketch, not pseudo-fields, not placeholder values a human is expected to fill in. If a required value genuinely cannot be determined from the request, ask for it instead of emitting a payload with a guess in it.
+
+`assumptions` lists any reading you chose where the request was ambiguous. Empty array if there were none. Do not invent assumptions to fill it.
