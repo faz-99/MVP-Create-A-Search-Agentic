@@ -23,13 +23,54 @@ EXECUTE_TOOLS: set[str] = {
     "accounting_search_standards_guidance",
     "aoe_search_agreements_and_exhibits",
     "comment_letters_search_comments_responses",
-    "dbm_sections_search",
+    "dbm_sections_search",  # renamed to filing_sections_search; kept so an older
+    "filing_sections_search",  # server deployment stays gated too
     "esg_search_reports",
     "no_action_letters_search",
     "sec_filings_search",
     "sec_rules_search",
     "transcripts_search",
 }
+
+# Tools whose names contain "search" but which only look things up — they resolve ids,
+# list taxonomies, or match mappings, and the build phase needs them. Listed
+# explicitly so that a NEW search tool cannot slip through unclassified: see
+# unclassified_search_tools().
+KNOWN_LOOKUP_TOOLS: set[str] = {
+    "accounting_search_pasu_mappings",
+    "aoe_search_document_types",
+    "comment_letters_search_topic_section_mappings",
+    "company_search",
+    "company_search_by_filters",
+    "company_search_detailed",
+    "search_asc_topics",
+    "search_asu_updates",
+    "search_headquarters_addresses",
+    "search_law_firms",
+    "search_naics_codes",
+    "search_sic_codes",
+    "sec_filings_find_form_types",
+    "sec_filings_find_sections",
+    "sec_filings_find_section_type_mappings",
+}
+
+
+def unclassified_search_tools(available: list[dict[str, Any]]) -> list[str]:
+    """Search-looking tools that are in neither list — i.e. a possible gate hole.
+
+    This exists because the gate silently sprang a leak: the server renamed
+    `dbm_sections_search` to `filing_sections_search`, and since the executor list is
+    hardcoded, the renamed tool became callable during the build phase. A hardcoded
+    allowlist cannot notice a rename, so the drift has to be detected and surfaced
+    rather than assumed away.
+    """
+    return sorted(
+        name
+        for name in (t.get("name", "") for t in available)
+        if "search" in name
+        and name not in EXECUTE_TOOLS
+        and name not in KNOWN_LOOKUP_TOOLS
+    )
 
 # Deliberately NOT withheld: the *_get_full_content / *_get_semantic_chunks /
 # *_get_chunk_range retrieval tools. They require a documentId that only a search

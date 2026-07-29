@@ -31,7 +31,7 @@ from shared.llm import LLM, Completion
 from shared.mcp_client import MCPClient
 from shared.plan import SearchPlan, parse_plan
 from shared.prompts import BUILD_SYSTEM_PROMPT
-from shared.toolsets import is_execute_tool
+from shared.toolsets import is_execute_tool, unclassified_search_tools
 from shared.validate import validate_payload
 
 MAX_ITERATIONS = 12
@@ -186,6 +186,20 @@ def run_build(
                    detail=f"{len(available)} tools")
             tools = build_phase_tools(available)
             emit({"type": "status", "text": f"{len(tools)} tools available"})
+
+            # A renamed executor would otherwise become silently callable here.
+            drift = unclassified_search_tools(available)
+            if drift:
+                emit(
+                    {
+                        "type": "invalid",
+                        "text": (
+                            "GATE WARNING: unclassified search tool(s) "
+                            f"{drift} — classify them in shared/toolsets.py. "
+                            "Until then they are callable during the build phase."
+                        ),
+                    }
+                )
 
             messages: list[dict[str, Any]] = [
                 {"role": "user", "content": [{"type": "text", "text": query}]}

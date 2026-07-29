@@ -15,7 +15,12 @@ import json
 import sys
 
 from shared.mcp_client import MCPClient, MCPError
-from shared.toolsets import EXECUTE_TOOLS, resolve_execute_tool
+from shared.toolsets import (
+    EXECUTE_TOOLS,
+    available_execute_tools,
+    resolve_execute_tool,
+    unclassified_search_tools,
+)
 
 
 def main() -> int:
@@ -42,10 +47,12 @@ def main() -> int:
         if description:
             print(f"      {description}")
 
-    execute_tool = resolve_execute_tool(tools)
+    present = available_execute_tools(tools)
     print()
-    if execute_tool:
-        print(f"Execute tool (withheld from the build phase): {execute_tool}")
+    if present:
+        print(f"Withheld from the build phase ({len(present)}):")
+        for name in present:
+            print(f"  - {name}")
     else:
         print(
             "WARNING: no tool matched EXECUTE_TOOLS in shared/toolsets.py\n"
@@ -53,6 +60,21 @@ def main() -> int:
             "  Until this matches a real tool name, the build phase is not gated and\n"
             "  the Run button has nothing to call. Update EXECUTE_TOOLS."
         )
+
+    drift = unclassified_search_tools(tools)
+    if drift:
+        print(
+            "\nGATE WARNING: these look like search tools but are classified as "
+            "neither executor nor lookup:"
+        )
+        for name in drift:
+            print(f"  - {name}")
+        print(
+            "  Classify them in shared/toolsets.py — until then the build phase can\n"
+            "  call them, which defeats the gate."
+        )
+    else:
+        print("\nGate: every search-looking tool is classified.")
 
     print("\nRun with --full for the complete input schemas.")
     return 0
