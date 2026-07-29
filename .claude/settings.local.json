@@ -42,7 +42,8 @@
       "Bash(timeout 900 python -m agent_openai.agent \"8k where ceo has resigned\")",
       "Bash(curl -sS -o /dev/null -w 'GET / -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 10)",
       "Bash(curl -sS -N -X POST http://127.0.0.1:8080/api/build -H \"Content-Type: application/json\" -d '{\"query\":\"8k where ceo has resigned\",\"provider\":\"claude\"}' --max-time 300)",
-      "Bash(curl -sS -o /dev/null -w 'GET /  -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)"
+      "Bash(curl -sS -o /dev/null -w 'GET /  -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)",
+      "Bash(curl -sS -o /dev/null -w 'GET /          -> HTTP %{http_code}\\\\n' http://127.0.0.1:8080/ --max-time 15)"
     ]
   }
 }
