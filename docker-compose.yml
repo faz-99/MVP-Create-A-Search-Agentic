@@ -15,10 +15,14 @@ services:
     image: create-search-ai:latest
     container_name: create-search
 
-    # Host : container. Change the LEFT side to whatever the host has free; the
-    # right side must stay 8080 to match EXPOSE and APP_PORT below.
+    # Host : container. Only the LEFT side can collide — change that if the host
+    # already has the port. The right side must stay 8080 to match EXPOSE and
+    # APP_PORT below; it is internal to the container and never collides.
+    #
+    # 6073 rather than 8080: 8080 was already allocated on the deploy host, and
+    # 6073 sits next to the 6072 the protege deployment uses.
     ports:
-      - "8080:8080"
+      - "6073:8080"
 
     # Supplies LEXIS_SSO_COOKIE and, on the deploy target, the OpenAI-compatible
     # endpoint credentials. Must exist before `up` — copy from .env.example.
