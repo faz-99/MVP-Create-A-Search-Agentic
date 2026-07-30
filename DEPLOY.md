@@ -55,26 +55,26 @@ Leave those blank locally — the OpenAI leg falls back to Bedrock Converse.
 
 ---
 
-## 2. Check AWS credentials are visible
+## 2. AWS credentials (Bedrock)
 
-Claude runs on Bedrock, so the container needs AWS credentials. `docker-compose.yml`
-mounts `%USERPROFILE%\.aws` read-only; nothing is copied into the image.
+**Locally you need a profile; on the server you must not set one.** Both legs run
+on Bedrock, and the credential source differs by environment:
+
+| | `AWS_PROFILE` | Source |
+|---|---|---|
+| Local | **set** in `.env` (e.g. `intelligize-dev`) | `~/.aws/credentials` |
+| Server | **unset** | instance role, via boto3's chain |
+
+Check the local profile works:
 
 ```cmd
-type %USERPROFILE%\.aws\credentials | findstr "["
 aws sts get-caller-identity --profile intelligize-dev
 ```
 
-The profile named in `docker-compose.yml` (`AWS_PROFILE`, default
-`intelligize-dev`) must exist in that file. To use a different one:
-
-```cmd
-set AWS_PROFILE=some-other-profile
-docker compose up -d
-```
-
-On EC2/ECS, delete the `.aws` volume mount and rely on the instance/task role
-instead — boto3 picks it up with no other change.
+Running the container *locally* also needs the credentials file visible inside it —
+uncomment the `.aws` mount in `docker-compose.yml`. It is commented out by default
+because the server does not need it and nothing credential-shaped should enter the
+image.
 
 ---
 
@@ -250,14 +250,25 @@ cp .env.example .env
 vi .env          # set LEXIS_SSO_COOKIE
 ```
 
-**AWS credentials for Bedrock.** Both model legs run through Bedrock, so the
-container needs credentials. Pick one:
+**AWS credentials for Bedrock — leave `AWS_PROFILE` unset on the server.**
 
-- *EC2/ECS instance or task role* (preferred — no secrets on disk): delete the
-  `.aws` volume line from `docker-compose.yml` and drop `AWS_PROFILE`. boto3 finds
-  the role automatically.
-- *Credentials file*: ensure `~/.aws/credentials` exists for the user running
-  Docker and contains the profile named in `AWS_PROFILE`. The compose mount
+This differs from local on purpose:
+
+| | `AWS_PROFILE` | Credentials come from |
+|---|---|---|
+| Local | **set** (e.g. `intelligize-dev`) | `~/.aws/credentials`, plus the `.aws` mount if running in Docker |
+| Server | **unset** | the instance role, via boto3's chain |
+
+Setting it on the server is the failure that produced `ProfileNotFound:
+The config profile (intelligize-dev) could not be found` — the profile does not
+exist there and never will. `docker-compose.yml` therefore does not set it, and the
+`.aws` mount is commented out so nothing credential-shaped enters the container.
+
+Since `.env` is excluded from the S3 sync, the server's `.env` is independent of
+yours — a local `AWS_PROFILE` will not leak into the deployment.
+
+*Old note, for a host with no role:* ensure `~/.aws/credentials` exists for the user
+running Docker and contains the profile named in `AWS_PROFILE`. The compose mount
   resolves `${HOME}` on Linux.
 
 **Output directory** — created by the volume mount on first `up`, but it must be

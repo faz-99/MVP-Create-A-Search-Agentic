@@ -96,9 +96,14 @@ class BedrockLLM:
         if self._client is None:
             import boto3
 
-            session = boto3.Session(
-                profile_name=self._profile, region_name=self._region
-            )
+            # Only pass profile_name when one is actually configured. Passing None
+            # (or an unset profile name) makes boto3 raise ProfileNotFound instead of
+            # falling back to its credential chain, which is how the instance role on
+            # the deploy host gets used.
+            kwargs = {"region_name": self._region}
+            if self._profile:
+                kwargs["profile_name"] = self._profile
+            session = boto3.Session(**kwargs)
             self._client = session.client("bedrock-runtime")
         return self._client
 
