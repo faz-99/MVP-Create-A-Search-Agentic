@@ -26,7 +26,7 @@ from pydantic import BaseModel
 
 from shared.analysis import run_analysis
 from shared.config import MCP_SERVER_NAME, OPENAI_BEDROCK_MODEL_ID
-from shared.llm import LLM, BedrockLLM, OpenAILLM
+from shared.llm import LLM, BedrockLLM, GatewayLLM, OpenAILLM
 from shared.loop import run_build
 from shared.mcp_client import MCPClient, MCPError
 from shared.runner import execute_search
@@ -38,12 +38,23 @@ STATIC_DIR = Path(__file__).parent / "static"
 def pick_llm(provider: str) -> LLM:
     """Choose the adapter for a leg.
 
-    The OpenAI leg is meant to run through the OpenAI SDK against an AWS-hosted
-    OpenAI-compatible endpoint, which only works on the deploy target. Locally there
-    is no credential for it, so it falls back to the same model over Bedrock Converse
-    rather than erroring — the leg stays exercisable in dev, and switches to the SDK
-    path automatically once deployed.
+    `claude` / `openai` run on Bedrock (the OpenAI leg via the OpenAI SDK once the
+    deploy target's credentials exist). `gateway-claude` / `gateway-openai` run on the
+    Intelligize gateway: they work without a bedrock:InvokeModel grant and reach real
+    GPT-5.x ids, but need the SSM tunnel open (see shared/config.GATEWAY_URL).
     """
+    if provider.startswith("gateway"):
+        from shared.config import (
+            CLAUDE_ACCOUNT_TYPE,
+            CLAUDE_ENDPOINT_KEY,
+            OPENAI_ACCOUNT_TYPE,
+            OPENAI_ENDPOINT_KEY,
+        )
+
+        if provider == "gateway-openai":
+            return GatewayLLM(OPENAI_ENDPOINT_KEY, OPENAI_ACCOUNT_TYPE)
+        return GatewayLLM(CLAUDE_ENDPOINT_KEY, CLAUDE_ACCOUNT_TYPE)
+
     if provider != "openai":
         return BedrockLLM()
 
@@ -168,6 +179,40 @@ async def analyze(request: AnalyzeRequest) -> dict[str, Any]:
 
 
 # --- misc ---------------------------------------------------------------------
+
+
+@app.get("/api/providers")
+async def providers() -> dict[str, Any]:
+    """Which legs this instance can actually run.
+
+    Asked rather than hardcoded so gateway legs appear only where they work: on the
+    deploy host this is the two Bedrock legs the UI has always shown.
+    """
+    from shared.config import (
+        CLAUDE_ENDPOINT_KEY,
+        GATEWAY_LEGS_ENABLED,
+        GATEWAY_URL,
+        OPENAI_ENDPOINT_KEY,
+    )
+
+    legs: list[dict[str, Any]] = [
+        {"value": "claude", "label": "Claude SDK"},
+        {"value": "openai", "label": "OpenAI SDK"},
+    ]
+    if GATEWAY_LEGS_ENABLED:
+        legs += [
+            {
+                "value": "gateway-claude",
+                "label": f"Gateway · {CLAUDE_ENDPOINT_KEY}",
+                "note": f"via {GATEWAY_URL}",
+            },
+            {
+                "value": "gateway-openai",
+                "label": f"Gateway · {OPENAI_ENDPOINT_KEY}",
+                "note": f"via {GATEWAY_URL}",
+            },
+        ]
+    return {"ok": True, "providers": legs}
 
 
 @app.get("/api/tools")

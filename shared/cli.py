@@ -32,6 +32,9 @@ def show_event(event: dict[str, Any]) -> None:
         print(f"\n     [{mark}] {(event.get('preview') or '')[:120]}", flush=True)
     elif kind == "invalid":
         print(f"\n     [schema] {event['text'][:200]}", flush=True)
+    elif kind == "warning":
+        # Non-fatal bookkeeping failure. "invalid" is about the payload; this is not.
+        print(f"\n  [warning] {event['text']}", flush=True)
     elif kind == "status":
         print(f"\n  ({event['text']})", flush=True)
     elif kind == "step":

@@ -54,6 +54,26 @@ AVAILABLE_ENDPOINT_KEYS = {
     ],
 }
 
+# Intelligize AI gateway. Since 2026-07-27 the public host answers `403 Access AI API
+# using SSM port forwarding.`, so the default is the forwarded local port — see the
+# tunnel command in README. Override with INTELLIGIZE_AI_URL from inside the VPN.
+GATEWAY_URL = (
+    os.environ.get("INTELLIGIZE_AI_URL") or "http://localhost:6043/api/IntelligizeAI"
+)
+
+# A normal turn takes 10–20s, but turns emitting a long boolean keyword list ran past
+# 180s and killed the whole build with a bare ReadTimeout.
+GATEWAY_TIMEOUT = int(os.environ.get("INTELLIGIZE_AI_TIMEOUT") or "300")
+
+# Local only: the deploy host has no SSM tunnel, so these legs cannot work there.
+# `.env` is excluded from the S3 sync, so a local value never reaches the server.
+GATEWAY_LEGS_ENABLED = (os.environ.get("ENABLE_GATEWAY_LEGS") or "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
 # Bedrock — the path for both legs. Tool calling verified with boto3 Converse.
 #
 # Two gotchas, both hit during setup:

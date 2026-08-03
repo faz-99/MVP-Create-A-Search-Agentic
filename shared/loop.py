@@ -227,6 +227,9 @@ def run_build(
                     plan = parse_plan("\n".join(transcript))
 
                     if not (plan.tool and isinstance(plan.payload, dict)):
+                        # Still report timings: the runs that most need explaining
+                        # were the only ones with no totals row in the UI.
+                        emit(totals())
                         break  # nothing to validate — report as parsed
 
                     errors = validate_payload(plan.tool, plan.payload, available)
@@ -335,8 +338,15 @@ def run_build(
                         "text": f"stopped after {max_iterations} iterations",
                     }
                 )
+                emit(totals())
     finally:
-        capture.write()
+        # An exception here would replace the plan returned above. capture.write()
+        # no longer raises; this guard keeps that true if it regresses.
+        try:
+            if capture.write() is None and capture.write_error:
+                emit({"type": "warning", "text": f"Run not captured: {capture.write_error}"})
+        except Exception as exc:  # never let bookkeeping break the run
+            emit({"type": "warning", "text": f"Run not captured: {exc!r}"})
 
     plan = parse_plan("\n".join(transcript))
     if plan.tool and isinstance(plan.payload, dict):

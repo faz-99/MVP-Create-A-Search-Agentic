@@ -7,17 +7,20 @@ holds) is already provider-independent.
 
 So the loop takes an `LLM` and does not care what is behind it:
 
-  AnthropicLLM   direct Anthropic API, real vendor model ids
-  OpenAILLM      direct OpenAI API, real vendor model ids
+  BedrockLLM     Bedrock Converse, AWS credentials, native tool calling
+  OpenAILLM      OpenAI SDK against an OpenAI-compatible endpoint
   GatewayLLM     Intelligize gateway, endpoint_secret_key + account_type
 
-The gateway adapter is a stub because the gateway keys (aws_bedrock_claude_4_sonnet,
-open_ai_gpt_5_2_2025_12_11) are not valid vendor model ids and cannot be passed to a
-vendor SDK. Filling it in is a small, isolated change: implement `complete` and
-nothing else moves.
+The gateway keys (aws_bedrock_claude_4_sonnet, open_ai_gpt_5_2_2025_12_11) are not
+vendor model ids and cannot be handed to a vendor SDK, so `GatewayLLM` speaks to the
+gateway's own HTTP endpoint. The open question was whether it could drive the loop at
+all, since the loop needs structured tool calls back and the gateway is text-in,
+text-out: it can, by carrying tool calls as a prompt-level JSON protocol. See
+`GatewayLLM` for what that costs (no token usage, compliance not enforced).
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -319,21 +322,64 @@ def _to_chat(message: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+# The gateway has no tool-calling surface, so tool calls travel as a text protocol.
+# Same shape as Reference/MCP-POC-AGENTS/.../common/utils.py, which is what these
+# models are known to comply with.
+#
+# Only tool calls are wrapped. A final answer stays plain text, so the build prompt's
+# trailing fenced JSON block needs no escaping inside a JSON string field.
+_GATEWAY_PROTOCOL = """\
+## HOW TO CALL TOOLS
+
+You cannot call tools directly. To call one or more tools, reply with ONLY this JSON
+object and nothing else — no prose before or after, no markdown fences:
+
+{"action": "tool_call", "tool_calls": [{"id": "<short unique id>", "name": "<tool name>", "args": {<arguments>}}]}
+
+Rules:
+- Use exact tool names and argument keys from the schemas below. Invent nothing.
+- Emit either tool calls OR a final answer in one turn, never both.
+- Tool results come back in the next turn, each labelled with its id.
+- When you are done calling tools, answer normally as plain text, following the
+  output contract in your instructions above (including its fenced JSON block).
+
+## TOOLS
+
+"""
+
+
 class GatewayLLM:
-    """Intelligize gateway adapter — not implemented.
+    """Intelligize gateway adapter — `POST /api/IntelligizeAI`.
 
-    The gateway addresses models by (account_type, endpoint_secret_key) rather than
-    by vendor model id, so this cannot be written against a vendor SDK. To implement:
-    construct the gateway client and map its tool-calling surface onto `Completion`.
+    Models are addressed by (account_type, endpoint_secret_key), and the endpoint is
+    text-in/text-out: one prompt string, one string back. No tool surface, no message
+    array, no usage. Tool calling therefore lives in the prompt (_GATEWAY_PROTOCOL),
+    with two consequences:
 
-    If the gateway exposes no tool-calling surface at all, that is worth knowing
-    before any of this is wired up: the loop needs a model that can emit structured
-    tool calls, and a text-only completion endpoint cannot drive it.
+      - Token counts are 0 here. The gateway reports no usage, and an estimate would
+        read as measured next to Bedrock's. Timings are real on both.
+      - Protocol compliance is prompt-level. A reply that ignores it becomes a final
+        answer rather than a malformed tool call.
+
+    Worth it for the model list: real GPT-5.x and Gemini ids, unlike Bedrock's
+    open-weight `gpt-oss`.
     """
 
-    def __init__(self, endpoint_secret_key: str, account_type: int):
+    def __init__(
+        self,
+        endpoint_secret_key: str,
+        account_type: int,
+        url: str | None = None,
+        timeout: int | None = None,
+        max_response_tokens: int = 32000,
+    ):
+        from shared.config import GATEWAY_TIMEOUT, GATEWAY_URL
+
         self.endpoint_secret_key = endpoint_secret_key
         self.account_type = account_type
+        self.url = url or GATEWAY_URL
+        self.timeout = timeout or GATEWAY_TIMEOUT
+        self.max_response_tokens = max_response_tokens
         self.name = f"gateway:{endpoint_secret_key}"
 
     def complete(
@@ -342,9 +388,163 @@ class GatewayLLM:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
     ) -> Completion:
-        raise NotImplementedError(
-            "GatewayLLM is not implemented. It needs the Intelligize gateway client's "
-            "tool-calling surface — specifically how to (a) pass tool schemas and "
-            "(b) read structured tool calls back. Until then use AnthropicLLM or "
-            "OpenAILLM with a real vendor model id."
+        import httpx
+
+        prompt = self._render(system, messages, tools)
+        body = {
+            "prompt": prompt,
+            "question": "",
+            "sourceContent": "",
+            "companyName": "",
+            "formType": "",
+            # The gateway treats this closer to a character budget than a token one.
+            "responseMaxTokens": self.max_response_tokens,
+            "intelligizeAIAccountType": self.account_type,
+            "endpointSecretKey": self.endpoint_secret_key,
+            "PromptId": 1,
+            "ModelId": "",
+        }
+
+        try:
+            response = httpx.post(self.url, json=body, timeout=self.timeout)
+            response.raise_for_status()
+        except httpx.ReadTimeout as exc:
+            # Not "gateway down" — it accepted the request. The loop cannot recover,
+            # so one slow turn loses the build; name the knob that fixes it.
+            raise RuntimeError(
+                f"The Intelligize AI gateway did not answer within {self.timeout}s "
+                f"({self.endpoint_secret_key}). Long boolean keyword lists are the "
+                "usual cause. Raise INTELLIGIZE_AI_TIMEOUT and retry."
+            ) from exc
+        except httpx.ConnectError as exc:
+            # "Connection refused on 6043" does not suggest the missing tunnel.
+            raise RuntimeError(
+                f"Cannot reach the Intelligize AI gateway at {self.url}. Open the SSM "
+                "port forward first:\n  aws ssm start-session --target "
+                "<nbs-dev-web-ec2-id> --document-name AWS-StartPortForwardingSession "
+                '--parameters "localPortNumber=6043,portNumber=6043" --region '
+                f"us-east-1 --profile <dev profile>\n({type(exc).__name__}: {exc})"
+            ) from exc
+
+        text = _unwrap_gateway_text(response.text or "")
+        parsed = _parse_gateway_reply(text)
+        return Completion(
+            text=parsed[0],
+            tool_calls=parsed[1],
+            stop_reason="tool_use" if parsed[1] else "end_turn",
+            # No usage from the gateway; see the class docstring.
+            input_tokens=0,
+            output_tokens=0,
+            raw={"prompt_chars": len(prompt), "response_chars": len(text)},
         )
+
+    def _render(
+        self,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+    ) -> str:
+        """Flatten system prompt, tool protocol and history into one prompt string."""
+        parts = [system]
+        if tools:
+            parts.append(_GATEWAY_PROTOCOL + "\n\n".join(_render_tool(t) for t in tools))
+        parts.extend(_render_gateway_message(m) for m in messages)
+        # Without this cue the model continues the transcript instead of answering.
+        parts.append("assistant:")
+        return "\n\n".join(p for p in parts if p)
+
+
+def _render_tool(tool: dict[str, Any]) -> str:
+    schema = json.dumps(tool.get("inputSchema") or {}, indent=2)
+    return (
+        f"### {tool.get('name')}\n{tool.get('description') or ''}\n\n"
+        f"Arguments (JSON Schema):\n```json\n{schema}\n```"
+    )
+
+
+def _render_gateway_message(message: dict[str, Any]) -> str:
+    """Neutral loop history -> labelled plain text, ids kept so calls pair up."""
+    role = message["role"]
+    lines: list[str] = []
+    for block in message["content"]:
+        kind = block.get("type")
+        if kind == "text":
+            lines.append(block["text"])
+        elif kind == "tool_use":
+            lines.append(
+                f'[tool call id={block["id"]}] {block["name"]}'
+                f"({json.dumps(block['input'], default=repr)})"
+            )
+        elif kind == "tool_result":
+            status = "ERROR" if block.get("is_error") else "ok"
+            lines.append(
+                f'[tool result id={block["tool_use_id"]} {status}]\n{block["content"]}'
+            )
+    return f"{role}:\n" + "\n\n".join(lines)
+
+
+def _unwrap_gateway_text(raw: str) -> str:
+    """The gateway sometimes returns a JSON-encoded string rather than raw text."""
+    text = (raw or "").strip()
+    try:
+        decoded = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return text
+    if isinstance(decoded, str):
+        return decoded.strip()
+    # Some endpoint keys return a dict instead.
+    if isinstance(decoded, dict):
+        for key in ("response", "content", "text", "result", "answer"):
+            value = decoded.get(key)
+            if isinstance(value, str):
+                return value.strip()
+    return text
+
+
+def _parse_gateway_reply(text: str) -> tuple[str, list[ToolCall]]:
+    """Split a gateway reply into (text, tool_calls).
+
+    Tolerant because models fence the object or prefix it with prose, and a strict
+    parser would lose the turn. Anything unrecognisable is returned as text, which the
+    loop treats as a final answer — as it does a real provider's end_turn.
+    """
+    stripped = text.strip()
+    for candidate in _json_objects(stripped):
+        if candidate.get("action") != "tool_call":
+            continue
+        calls: list[ToolCall] = []
+        for raw_call in candidate.get("tool_calls") or []:
+            if not isinstance(raw_call, dict):
+                continue
+            name = raw_call.get("name")
+            if not name:
+                continue
+            args = raw_call.get("args")
+            if not isinstance(args, dict):
+                args = {}
+            calls.append(
+                ToolCall(
+                    id=str(raw_call.get("id") or f"call_{len(calls) + 1}"),
+                    name=str(name),
+                    arguments=args,
+                )
+            )
+        if calls:
+            return ("", calls)
+
+    # Final answer, fences included — parse_plan wants that block.
+    return (stripped, [])
+
+
+def _json_objects(text: str) -> list[dict[str, Any]]:
+    """Every top-level JSON object in `text` — position is not assumed."""
+    found: list[dict[str, Any]] = []
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", text):
+        try:
+            obj, _ = decoder.raw_decode(text, match.start())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            found.append(obj)
+    return found

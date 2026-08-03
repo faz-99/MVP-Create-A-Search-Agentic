@@ -373,6 +373,22 @@ docker compose exec create-search printenv LEXIS_SSO_COOKIE
 Empty means `.env` is missing or was created after `up` — `docker compose up -d`
 again to reload it.
 
+**`PermissionError: [Errno 13] ... 'out/<timestamp>-bedrock.json'`**
+The host `out/` directory is not writable by UID 1000 (`searchagent` in the image) —
+step 3's `chown` was skipped, or the directory was created by root on first `up`. The
+bind mount masks the image's own ownership, so rebuilding does not fix it:
+
+```bash
+sudo chown -R 1000:1000 /data/create-search-agent/out
+docker compose restart create-search
+```
+
+The entrypoint now warns about this at startup (`/app/out is not writable`), and a
+failed capture no longer breaks the run — searches work, only the history is skipped.
+Before that fix this error aborted the build phase *after* the model had finished, so
+the UI showed results but no plan and therefore **no Run search button**. If you see
+the button missing, check the logs for this warning first.
+
 **`/api/tools` returns 503**
 Upstream, not you. The MCP host resolves to several pods behind an ELB and some
 return 503; the client already retries 6 times. If every attempt fails, the pool

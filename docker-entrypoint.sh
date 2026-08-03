@@ -17,6 +17,17 @@ set -euo pipefail
 
 mkdir -p /app/out
 
+# The bind mount masks the image's ownership, so a host out/ created by root leaves
+# this process unable to write. Capture failure is non-fatal now, so without this
+# check nothing would point at the cause.
+if ! touch /app/out/.write-probe 2>/dev/null; then
+  echo "[entrypoint] WARNING: /app/out is not writable by UID $(id -u)." >&2
+  echo "[entrypoint]   Captured run history will be skipped (searches still work)." >&2
+  echo "[entrypoint]   Fix on the host:  sudo chown -R 1000:1000 ./out" >&2
+else
+  rm -f /app/out/.write-probe
+fi
+
 APP_HOST="${APP_HOST:-0.0.0.0}"
 APP_PORT="${APP_PORT:-8080}"
 
