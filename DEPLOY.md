@@ -5,9 +5,9 @@ Commands are for **Windows `cmd.exe`**. Run them from the project root
 
 > **Build verified** on the deploy host (`create-search-ai:latest`, ~70s, all 9
 > layers). Not yet verified: a successful `up` — the first attempt hit a host port
-> collision on 8080, which is why the published port is now **6073**.
+> collision on 8080, which is why the published port is now **6074**.
 >
-> The container listens on **8080 internally** and is published on **6073**. Only the
+> The container listens on **8080 internally** and is published on **6074**. Only the
 > published port can collide; changing it never requires touching the Dockerfile or
 > the healthcheck.
 
@@ -122,16 +122,16 @@ will load but every search will 401.
 **a. The UI is serving**
 
 ```cmd
-curl -i http://127.0.0.1:6073/
+curl -i http://127.0.0.1:6074/
 ```
 
-Expect `HTTP/1.1 200 OK`. Then open <http://127.0.0.1:6073> in a browser.
+Expect `HTTP/1.1 200 OK`. Then open <http://127.0.0.1:6074> in a browser.
 
 **b. MCP auth and the tool gate work** — this is the real smoke test, since it
 proves the cookie, the network path, and the gate all at once:
 
 ```cmd
-curl http://127.0.0.1:6073/api/tools
+curl http://127.0.0.1:6074/api/tools
 ```
 
 Expect `"ok": true`, 63 tools, and 9 in `withheld_execute_tools`. If `ok` is
@@ -141,7 +141,7 @@ an upstream outage (503).
 **c. Create a search end to end** (takes ~20–30s; it calls a model):
 
 ```cmd
-curl -X POST http://127.0.0.1:6073/api/build -H "Content-Type: application/json" -d "{\"query\":\"8-K filings where the CEO resigned\",\"provider\":\"claude\"}"
+curl -X POST http://127.0.0.1:6074/api/build -H "Content-Type: application/json" -d "{\"query\":\"8-K filings where the CEO resigned\",\"provider\":\"claude\"}"
 ```
 
 Watch for `"type": "step"` events with timings, then a `"type": "plan"` event with
@@ -292,8 +292,8 @@ docker compose logs -f create-search
 Then smoke-test on the server itself:
 
 ```bash
-curl -i http://127.0.0.1:6073/
-curl http://127.0.0.1:6073/api/tools
+curl -i http://127.0.0.1:6074/
+curl http://127.0.0.1:6074/api/tools
 ```
 
 `/api/tools` returning `"ok": true` with 63 tools and 9 withheld proves the
@@ -350,7 +350,7 @@ Something else holds the port — quite likely a local uvicorn from development.
 Find and stop it:
 
 ```cmd
-netstat -ano | findstr :6073
+netstat -ano | findstr :6074
 taskkill /PID <pid> /F
 ```
 
@@ -415,7 +415,7 @@ The healthcheck probes `/` on 8080 *inside* the container, which is unaffected b
 
 ```cmd
 docker compose logs create-search
-docker compose exec create-search curl -i http://127.0.0.1:6073/
+docker compose exec create-search curl -i http://127.0.0.1:8080/
 ```
 
 **Image is much larger than expected**

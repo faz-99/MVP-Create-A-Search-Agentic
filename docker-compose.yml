@@ -19,10 +19,10 @@ services:
     # already has the port. The right side must stay 8080 to match EXPOSE and
     # APP_PORT below; it is internal to the container and never collides.
     #
-    # 6073 rather than 8080: 8080 was already allocated on the deploy host, and
-    # 6073 sits next to the 6072 the protege deployment uses.
+    # Not 8080: already allocated on the deploy host. 6074 sits alongside the 6072
+    # the protege deployment uses; 6073 was the previous choice for this service.
     ports:
-      - "6073:8080"
+      - "6074:8080"
 
     # Supplies LEXIS_SSO_COOKIE and, on the deploy target, the OpenAI-compatible
     # endpoint credentials. Must exist before `up` — copy from .env.example.

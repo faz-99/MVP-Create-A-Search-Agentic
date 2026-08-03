@@ -76,7 +76,9 @@
       "PowerShell(Get-Content *)",
       "Bash(bash -n docker-entrypoint.sh)",
       "Bash(.venv/Scripts/python.exe -m py_compile shared/capture.py shared/loop.py shared/llm.py shared/config.py shared/cli.py ui/server.py)",
-      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8080/\" -UseBasicParsing -TimeoutSec 15; \"UI  http://127.0.0.1:8080  -> HTTP $\\($r.StatusCode\\)\" } catch { \"UI DOWN: $\\($_.Exception.Message\\)\" })"
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8080/\" -UseBasicParsing -TimeoutSec 15; \"UI  http://127.0.0.1:8080  -> HTTP $\\($r.StatusCode\\)\" } catch { \"UI DOWN: $\\($_.Exception.Message\\)\" })",
+      "Bash(INTELLIGIZE_AI_TIMEOUT=600 .venv/Scripts/python.exe \"C:/Users/shawana.faz/AppData/Local/Temp/claude/D--NBS-Projects-CreateSearchAgentic/af5c0540-6a9c-4585-a02b-bf59b24aef6b/scratchpad/batch_run.py\" \"C:/Users/shawana.faz/AppData/Local/Temp/claude/D--NBS-Projects-CreateSearchAgentic/af5c0540-6a9c-4585-a02b-bf59b24aef6b/scratchpad/queries.txt\" \"D:/NBS Projects/CreateSearchAgentic/out/created-searches-gateway-claude.xlsx\" --provider gateway-claude --workers 1)",
+      "Bash(.venv/Scripts/python.exe -)"
     ]
   }
 }
