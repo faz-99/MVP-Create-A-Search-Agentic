@@ -82,7 +82,8 @@
       "Bash(.venv/Scripts/python.exe \"C:/Users/shawana.faz/AppData/Local/Temp/claude/D--NBS-Projects-CreateSearchAgentic/af5c0540-6a9c-4585-a02b-bf59b24aef6b/scratchpad/test_gateway_leg.py\")",
       "PowerShell($c = Get-NetTCPConnection -LocalPort 6043 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { \"still bound by PID\\(s\\): \" + \\(\\($c | ForEach-Object { $_.OwningProcess }\\) -join \",\"\\) } else { \"port 6043 free\" })",
       "Bash(.venv/Scripts/python.exe -m py_compile shared/plan.py shared/loop.py shared/llm.py)",
-      "Bash(curl -s -o /dev/null -w \"UI http://127.0.0.1:8080 -> %{http_code}\\\\n\" http://127.0.0.1:8080/)"
+      "Bash(curl -s -o /dev/null -w \"UI http://127.0.0.1:8080 -> %{http_code}\\\\n\" http://127.0.0.1:8080/)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { foreach \\($x in $c\\) { $p = Get-Process -Id $x.OwningProcess -ErrorAction SilentlyContinue; \"8080 held by PID $\\($x.OwningProcess\\) \\($\\($p.ProcessName\\)\\)\" } } else { \"8080 free - nothing listening\" })"
     ]
   }
 }
