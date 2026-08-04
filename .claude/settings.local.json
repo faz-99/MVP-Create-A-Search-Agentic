@@ -83,7 +83,8 @@
       "PowerShell($c = Get-NetTCPConnection -LocalPort 6043 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { \"still bound by PID\\(s\\): \" + \\(\\($c | ForEach-Object { $_.OwningProcess }\\) -join \",\"\\) } else { \"port 6043 free\" })",
       "Bash(.venv/Scripts/python.exe -m py_compile shared/plan.py shared/loop.py shared/llm.py)",
       "Bash(curl -s -o /dev/null -w \"UI http://127.0.0.1:8080 -> %{http_code}\\\\n\" http://127.0.0.1:8080/)",
-      "PowerShell($c = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { foreach \\($x in $c\\) { $p = Get-Process -Id $x.OwningProcess -ErrorAction SilentlyContinue; \"8080 held by PID $\\($x.OwningProcess\\) \\($\\($p.ProcessName\\)\\)\" } } else { \"8080 free - nothing listening\" })"
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { foreach \\($x in $c\\) { $p = Get-Process -Id $x.OwningProcess -ErrorAction SilentlyContinue; \"8080 held by PID $\\($x.OwningProcess\\) \\($\\($p.ProcessName\\)\\)\" } } else { \"8080 free - nothing listening\" })",
+      "PowerShell(Start-Sleep -Seconds 5; try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8080/\" -UseBasicParsing -TimeoutSec 20; \"UI   http://127.0.0.1:8080 -> HTTP $\\($r.StatusCode\\)\" } catch { \"UI DOWN: $\\($_.Exception.Message\\)\" }; $c = Get-NetTCPConnection -LocalPort 6043 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { \"tunnel 6043 -> listening\" } else { \"tunnel 6043 -> not listening\" })"
     ]
   }
 }
