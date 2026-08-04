@@ -39,6 +39,10 @@ MAX_REPAIRS = 2
 
 DESCRIBE_TOOL = "describe_search_tool"
 
+# A reply cut off at the token limit loses its trailing JSON block — the one part that
+# is the deliverable. Bedrock says "max_tokens", Chat Completions says "length".
+TRUNCATED_STOP_REASONS = {"max_tokens", "length"}
+
 # Emitted for the UI: {"type": "thinking"|"text"|"tool"|"tool_result"|"status", ...}
 EventSink = Callable[[dict[str, Any]], None]
 
@@ -128,6 +132,17 @@ def _repair_request(tool: str, errors: list[str]) -> dict[str, Any]:
         + "\n- ".join(errors)
         + "\n\nCall the describe tool for that tool if you need the schema again, "
         "then emit a corrected JSON block. Use only field names the schema defines."
+    )
+    return {"role": "user", "content": [{"type": "text", "text": body}]}
+
+
+def _plan_request(reason: str | None) -> dict[str, Any]:
+    body = (
+        "Your reply did not end with the required search block"
+        + (f" ({reason})" if reason else "")
+        + ".\n\nEmit it now and nothing else: one ```json fenced object with `tool`, "
+        "`payload` and `analysis_instructions`. Do not restate your reasoning — the "
+        "work is done, only the block is missing."
     )
     return {"role": "user", "content": [{"type": "text", "text": body}]}
 
@@ -227,6 +242,46 @@ def run_build(
                     plan = parse_plan("\n".join(transcript))
 
                     if not (plan.tool and isinstance(plan.payload, dict)):
+                        # The reply ended without the block. Ask for it rather than
+                        # giving up — the tool work is already done, and throwing it
+                        # away shows the operator "no runnable search" for what is
+                        # usually one missing fence.
+                        if repairs < MAX_REPAIRS:
+                            repairs += 1
+                            if completion.stop_reason in TRUNCATED_STOP_REASONS:
+                                emit(
+                                    {
+                                        "type": "warning",
+                                        "text": (
+                                            "The model hit its output token limit, so "
+                                            "the trailing JSON block was cut off."
+                                        ),
+                                    }
+                                )
+                            emit(
+                                {
+                                    "type": "status",
+                                    "text": (
+                                        "no search block — asking for it "
+                                        f"({repairs}/{MAX_REPAIRS})"
+                                    ),
+                                }
+                            )
+                            # Only when there is text: Bedrock rejects an empty text
+                            # block, and an empty reply is exactly one way to get here.
+                            if completion.text:
+                                messages.append(
+                                    {
+                                        "role": "assistant",
+                                        "content": [
+                                            {"type": "text", "text": completion.text}
+                                        ],
+                                    }
+                                )
+                            messages.append(_plan_request(plan.parse_error))
+                            transcript.clear()
+                            continue
+
                         # Still report timings: the runs that most need explaining
                         # were the only ones with no totals row in the UI.
                         emit(totals())

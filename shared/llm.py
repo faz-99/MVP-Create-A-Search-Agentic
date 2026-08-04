@@ -132,7 +132,9 @@ class BedrockLLM:
                     for t in tools
                 ]
             },
-            inferenceConfig={"maxTokens": 8192},
+            # The plan block is the last thing the model writes, so truncation costs
+            # exactly the deliverable — headroom is cheap insurance.
+            inferenceConfig={"maxTokens": 16384},
         )
 
         blocks = response["output"]["message"]["content"]
