@@ -54,17 +54,46 @@ AVAILABLE_ENDPOINT_KEYS = {
     ],
 }
 
-# Bedrock — the verified path for the Claude side. Tool calling confirmed working
-# against this profile/model with boto3 Converse.
+# Intelligize AI gateway. Since 2026-07-27 the public host answers `403 Access AI API
+# using SSM port forwarding.`, so the default is the forwarded local port — see the
+# tunnel command in README. Override with INTELLIGIZE_AI_URL from inside the VPN.
+GATEWAY_URL = (
+    os.environ.get("INTELLIGIZE_AI_URL") or "http://localhost:6043/api/IntelligizeAI"
+)
+
+# A normal turn takes 10–20s, but turns emitting a long boolean keyword list ran past
+# 180s and killed the whole build with a bare ReadTimeout.
+GATEWAY_TIMEOUT = int(os.environ.get("INTELLIGIZE_AI_TIMEOUT") or "300")
+
+# Local only: the deploy host has no SSM tunnel, so these legs cannot work there.
+# `.env` is excluded from the S3 sync, so a local value never reaches the server.
+GATEWAY_LEGS_ENABLED = (os.environ.get("ENABLE_GATEWAY_LEGS") or "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+# Bedrock — the path for both legs. Tool calling verified with boto3 Converse.
 #
 # Two gotchas, both hit during setup:
-#   - The id needs the `us.` inference-profile prefix. The bare model id
+#   - The Anthropic id needs the `us.` inference-profile prefix. The bare model id
 #     (anthropic.claude-sonnet-4-20250514-v1:0) is rejected: "Invocation of model ID
 #     ... with on-demand throughput isn't supported."
 #   - The Anthropic SDK's Mantle client is a separate IAM surface and returns 403
-#     (bedrock-mantle:Create*) for this user. boto3 bedrock-runtime works.
-BEDROCK_PROFILE = os.environ.get("AWS_PROFILE", "intelligize-dev")
-BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
+#     (bedrock-mantle:Create*). boto3 bedrock-runtime works.
+#
+# Deliberately no default profile — the right answer differs by environment:
+#
+#   LOCAL  needs a named profile (AWS_PROFILE in .env). There is no instance role,
+#          and the `default` profile is not necessarily the one with Bedrock access.
+#   SERVER needs AWS_PROFILE unset, so boto3 falls through to the instance role.
+#          Naming a profile that does not exist there raises ProfileNotFound —
+#          which is exactly what a hardcoded "intelligize-dev" default caused.
+#
+# Empty string is treated as unset so a blank line in .env behaves like absence.
+BEDROCK_PROFILE = os.environ.get("AWS_PROFILE") or None
+BEDROCK_REGION = os.environ.get("AWS_REGION") or "us-east-1"
 
 # Claude leg. Needs the `us.` inference-profile prefix.
 BEDROCK_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"

@@ -14,6 +14,13 @@ from typing import Any
 _FENCE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
 
+def _loads_or_none(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
 @dataclass
 class SearchPlan:
     tool: str | None = None
@@ -50,17 +57,54 @@ class SearchPlan:
         }
 
 
+def _plan_shaped(candidate: Any) -> bool:
+    """Does this object look like the plan rather than an incidental JSON blob?"""
+    return isinstance(candidate, dict) and ("tool" in candidate or "payload" in candidate)
+
+
+def _unfenced_objects(text: str) -> list[dict[str, Any]]:
+    """Plan-shaped JSON objects in `text` that were not wrapped in a fence.
+
+    The fence is a prompt-level contract, and weaker models honour it inconsistently —
+    `gpt-oss` regularly emits the object bare. Refusing that is a self-inflicted
+    failure: the search is right there, correctly formed, just not decorated.
+    Restricted to plan-shaped objects so an argument blob quoted mid-explanation
+    cannot be mistaken for the deliverable.
+    """
+    found: list[dict[str, Any]] = []
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", text):
+        try:
+            obj, _ = decoder.raw_decode(text, match.start())
+        except json.JSONDecodeError:
+            continue
+        if _plan_shaped(obj):
+            found.append(obj)
+    return found
+
+
 def parse_plan(text: str) -> SearchPlan:
     """Pull the plan out of an assistant reply.
 
-    Uses the *last* fenced JSON object: the model may quote an intermediate payload
+    Uses the *last* candidate: the model may quote an intermediate payload
     mid-explanation, and the final block is the one the prompt asks it to end with.
+    Fenced blocks win; a bare object is accepted only if no fence carried a plan.
     """
     blocks = _FENCE.findall(text or "")
-    if not blocks:
+    fenced_plans = [b for b in blocks if _plan_shaped(_loads_or_none(b))]
+    bare_plans = _unfenced_objects(text or "") if not fenced_plans else []
+
+    if fenced_plans:
+        raw = fenced_plans[-1]
+    elif bare_plans:
+        raw = json.dumps(bare_plans[-1])
+    elif blocks:
+        # A fence exists but carries no plan — keep the original diagnostics, which
+        # distinguish malformed JSON from a block of the wrong shape.
+        raw = blocks[-1]
+    else:
         return SearchPlan(parse_error="No fenced JSON block found in the reply.")
 
-    raw = blocks[-1]
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:

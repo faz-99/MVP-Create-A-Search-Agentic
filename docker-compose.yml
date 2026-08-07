@@ -1,0 +1,74 @@
+# =============================================================================
+# AI Create Search — docker-compose
+# =============================================================================
+# Run:        docker compose up -d
+# Stop:       docker compose down
+# Logs:       docker compose logs -f create-search
+# Rebuild:    docker compose build --no-cache      (after requirements change)
+# Shell:      docker compose exec create-search bash
+# One-off:    docker compose run --rm create-search python -m probe.probe_mcp
+# =============================================================================
+
+services:
+  create-search:
+    build: .
+    image: create-search-ai:latest
+    container_name: create-search
+
+    # Host : container. Only the LEFT side can collide — change that if the host
+    # already has the port. The right side must stay 8080 to match EXPOSE and
+    # APP_PORT below; it is internal to the container and never collides.
+    #
+    # 6073 rather than 8080: 8080 was already allocated on the deploy host, and
+    # 6073 sits next to the 6072 the protege deployment uses.
+    ports:
+      - "6073:8080"
+
+    # Supplies LEXIS_SSO_COOKIE and, on the deploy target, the OpenAI-compatible
+    # endpoint credentials. Must exist before `up` — copy from .env.example.
+    # docker-compose strips surrounding quotes from values automatically.
+    env_file:
+      - .env
+
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8080"
+
+      # No AWS_PROFILE here on purpose. Forcing a profile name breaks any host
+      # that lacks it — on the deploy server boto3 raised ProfileNotFound even
+      # though the instance role was available and working. Unset, boto3 uses its
+      # normal chain: env vars, then the default profile, then the instance/task
+      # role. Add AWS_PROFILE to .env only if a specific named profile is needed.
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+
+      # Python writes .pyc into the read-only-ish image layer otherwise, and
+      # unbuffered output means `docker compose logs -f` is live rather than
+      # showing nothing until a buffer flushes.
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    volumes:
+      # Captured runs (payload + result per call) persist across rebuilds.
+      - ./out:/app/out
+
+      # No AWS credentials mount. The deploy host has an instance role, so boto3
+      # finds credentials on its own and nothing sensitive needs to enter the
+      # container. Uncomment ONLY for a machine with no role, where credentials
+      # live in a file — it stays read-only and is never copied into the image:
+      #
+      #   - ${HOME:-${USERPROFILE}}/.aws:/home/searchagent/.aws:ro
+      #
+      # If you do mount it, also set AWS_PROFILE in .env to name the profile.
+
+    restart: unless-stopped
+
+    # `/` is served from static files and does not touch the MCP server, so this
+    # probe reports process health without depending on an upstream that is known
+    # to return intermittent 503s from unhealthy pods. Probing /api/tools instead
+    # would mark the container unhealthy for someone else's outage.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/').status==200 else 1)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

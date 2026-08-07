@@ -1,6 +1,32 @@
-anthropic>=0.116.0
+# Pinned to lower bounds matching the versions this was verified against locally.
+# Verified: boto3 1.37.20, jsonschema 4.23.0, fastapi 0.115.13, uvicorn 0.34.3,
+# httpx 0.28.1, python-dotenv 1.0.1, openai 2.49.0.
+
+# Bedrock (Converse) — the primary model path for both legs. Absent from an
+# earlier version of this file, which would have produced an image that imported
+# fine locally and failed in the container.
+boto3>=1.37.0
+
+# OpenAI SDK — used against the AWS-hosted OpenAI-compatible endpoint on the
+# deploy target (chat.completions). Unused locally, where the OpenAI leg falls
+# back to Bedrock.
 openai>=1.60.0
+
+# MCP client transport
 httpx>=0.27.0
-python-dotenv>=1.0.0
+
+# Validates a created search against the live tool schema before it can be run
+jsonschema>=4.23.0
+
+# UI
 fastapi>=0.115.0
 uvicorn>=0.32.0
+pydantic>=2.10.0
+
+# Loads .env locally; in the container the values come from env_file instead
+python-dotenv>=1.0.0
+
+# NOTE: the `anthropic` SDK is deliberately absent. Claude is reached through
+# Bedrock with AWS credentials, so nothing imports it — the direct API path was
+# removed after that key turned out to have no credit balance. Re-add it only if
+# a direct Anthropic path comes back.

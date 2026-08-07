@@ -33,6 +33,12 @@ python -m agent_claude.agent --run "..."           # also execute the search
 
 Run everything from the project root so the `shared` package resolves.
 
+The Bedrock legs need `bedrock:InvokeModel` on the AWS user in `AWS_PROFILE`. Without
+it every build fails with `AccessDeniedException` before the model runs — that is an
+IAM grant, not a code problem. To work without it, use a gateway leg: open the SSM
+tunnel (below), set `ENABLE_GATEWAY_LEGS=1` in `.env`, and pick a `Gateway ·` leg in
+the UI.
+
 > Port 8000 is blocked by Windows on this machine (`winerror 10013`); 8080 works.
 > `pkill` does not kill uvicorn on Windows — use
 > `Get-NetTCPConnection -LocalPort 8080 | Stop-Process -Id {OwningProcess} -Force`.
@@ -169,8 +175,16 @@ Also: the Anthropic SDK's Mantle client is a separate IAM surface and 403s
 
 | Leg | Local | Deployed |
 |---|---|---|
-| Claude | Bedrock Converse, `us.anthropic.claude-sonnet-4-20250514-v1:0` | same |
-| OpenAI | falls back to Bedrock `openai.gpt-oss-120b-1:0` | OpenAI SDK → AWS OpenAI-compatible endpoint |
+| `claude` | Bedrock Converse, `us.anthropic.claude-sonnet-4-20250514-v1:0` | same |
+| `openai` | falls back to Bedrock `openai.gpt-oss-120b-1:0` | OpenAI SDK → AWS OpenAI-compatible endpoint |
+| `gateway-claude` | Intelligize gateway, `aws_bedrock_claude_4_sonnet` | not offered |
+| `gateway-openai` | Intelligize gateway, `open_ai_gpt_5_2_2025_12_11` | not offered |
+
+The gateway legs are **local only** and hidden unless `ENABLE_GATEWAY_LEGS=1`. They
+exist because Bedrock access is an IAM grant a dev machine may lose — and because the
+gateway is the only route to a real GPT-5.x id. The UI asks `/api/providers` for the
+list rather than hardcoding it, so the deploy host shows exactly the two Bedrock legs
+it can actually run.
 
 The OpenAI leg is meant to run the **OpenAI SDK against an AWS-hosted
 OpenAI-compatible endpoint**, which only works on the deploy target. That surface is
@@ -180,12 +194,50 @@ family over Converse — the leg stays exercisable in dev and switches automatic
 `AWS_BEARER_TOKEN_BEDROCK` (or `OPENAI_BASE_URL`) is present.
 
 > **`gpt-oss` is not GPT-5.x.** Bedrock does not serve `open_ai_gpt_5_2_2025_12_11`.
-> Do not read a local gpt-oss result as a verdict on the OpenAI leg.
+> Do not read a local gpt-oss result as a verdict on the OpenAI leg. For a real
+> GPT-5.2 comparison use the `gateway-openai` leg, which addresses that id directly.
 
-`shared/llm.py` also holds `GatewayLLM`, a stub for the Intelligize gateway. It is
-unimplemented because the gateway addresses models by `endpoint_secret_key` rather
-than vendor model id. If the gateway turns out to be a text-only completion endpoint,
-it **cannot** drive this loop at all — the loop needs structured tool calls back.
+### The gateway is text-only, and drives the loop anyway
+
+`GatewayLLM` was a stub with an open question attached: the loop needs structured tool
+calls back, so a text-only completion endpoint could not drive it. The gateway **is**
+text-only — `POST /api/IntelligizeAI` takes one `prompt` string and returns one string,
+with no message array, no tool surface, and no usage data.
+
+It still works, by carrying tool calls as a prompt-level JSON protocol: schemas are
+rendered into the prompt, the model replies with
+`{"action": "tool_call", "tool_calls": [...]}`, and the adapter parses that back into
+`Completion.tool_calls`. This is the shape `Reference/` already uses against the same
+gateway, reused rather than reinvented because it is what these models comply with.
+Two things follow, both worth knowing before reading the numbers:
+
+- **Token columns are 0 on gateway legs.** The gateway reports no usage. An estimate
+  would sit next to Bedrock's measured counts and read as if it were measured too.
+  Timings are real on both.
+- **Protocol compliance is prompt-level.** On Bedrock a malformed tool call cannot
+  happen; here it is merely unlikely, and a reply that ignores the protocol is treated
+  as a final answer.
+
+A final answer stays plain text rather than being wrapped in the protocol JSON — the
+build prompt already requires a trailing fenced JSON block, and nesting a fenced block
+inside a JSON string field is an escaping trap for no benefit.
+
+### The gateway is only reachable through an SSM tunnel
+
+From **2026-07-27** `https://ddc4-ai.intelligize.net` no longer resolves publicly; it
+answers `403 Access AI API using SSM port forwarding.` Open a port forward first, then
+the default `INTELLIGIZE_AI_URL` (`http://localhost:6043/api/IntelligizeAI`) works:
+
+```sh
+aws ssm start-session --target <nbs-dev-web-ec2-id> \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters "localPortNumber=6043,portNumber=6043" \
+  --region us-east-1 --profile <dev profile>
+```
+
+The current EC2 id is on the status page. `GatewayLLM` turns the resulting
+`ConnectError` into a message naming this command, because "connection refused on
+6043" does not suggest it.
 
 ---
 
@@ -215,6 +267,12 @@ identically.
 
 Every payload sent and result received is written to `out/<timestamp>-<provider>.json`
 in the same shape for both legs, so runs can be diffed across providers.
+
+Capture failure is **non-fatal** and reported as a `warning` event. It writes from a
+`finally`, so a raised exception there replaced the returned plan — on the deploy host
+an unwritable `out/` (bind mount owned by another uid) turned a good run into an error
+with no plan, and the UI's Run button never appeared. A lost log file must not cost the
+deliverable; if history stops appearing, check for that warning.
 
 ---
 

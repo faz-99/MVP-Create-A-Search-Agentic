@@ -111,6 +111,10 @@
     </div>
   </section>
 
+  <!-- Non-fatal run warnings. Outside plan-section because renderPlan rewrites
+       plan-warnings and these arrive before the plan event. -->
+  <div id="notices"></div>
+
   <section id="thinking-section" class="hidden">
     <h2>Thinking</h2>
     <pre id="thinking" class="thinking"></pre>
@@ -190,6 +194,27 @@ const provider = () => document.querySelector('input[name="provider"]:checked').
 
 let lastResults = null;
 
+/** Add any leg this instance offers beyond the two in the markup. Additive: if the
+ *  fetch fails or only the Bedrock legs come back, the fieldset is unchanged. */
+(async () => {
+  try {
+    const r = await fetch("/api/providers");
+    if (!r.ok) return;
+    const { providers } = await r.json();
+    for (const p of providers || []) {
+      if (document.querySelector(`input[name="provider"][value="${p.value}"]`)) continue;
+      const label = document.createElement("label");
+      if (p.note) label.title = p.note;
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "provider";
+      input.value = p.value;
+      label.append(input, " " + p.label);
+      $("provider").appendChild(label);
+    }
+  } catch { /* leave the default legs in place */ }
+})();
+
 /** POST JSON, then consume the SSE-framed response body via fetch streaming.
  *  EventSource is GET-only, so it can't carry the request body. */
 async function streamPost(url, body, onEvent) {
@@ -232,6 +257,7 @@ $("build").addEventListener("click", async () => {
   $("reply").textContent = "";
   $("tools").innerHTML = "";
   $("plan-warnings").innerHTML = "";
+  $("notices").innerHTML = "";
   lastResults = null;
 
   $("build").disabled = true;
@@ -275,6 +301,14 @@ $("build").addEventListener("click", async () => {
         case "plan":
           renderPlan(event.plan);
           break;
+        case "warning": {
+          // The run stands, so leave build-status to report its own outcome.
+          const note = document.createElement("p");
+          note.className = "gate warn";
+          note.textContent = event.text;
+          $("notices").appendChild(note);
+          break;
+        }
         case "error":
           $("build-status").innerHTML = `<span class="warn">${escapeHtml(event.message)}</span>`;
           break;

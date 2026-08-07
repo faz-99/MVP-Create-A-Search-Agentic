@@ -22,6 +22,9 @@ class RunCapture:
         self.request = request
         self.calls: list[dict[str, Any]] = []
 
+        # Why write() failed, for the caller to surface. None until it does.
+        self.write_error: str | None = None
+
     def record_call(
         self,
         name: str,
@@ -58,25 +61,35 @@ class RunCapture:
         target["error"] = _jsonable(error) if error else None
 
     def write(self) -> Path | None:
-        """Write the run to out/. Returns the path, or None if nothing was captured."""
+        """Write the run to out/. Returns the path, or None if nothing was written.
+
+        Never raises: the only call site is a `finally`, where an exception replaces
+        the returned plan. An unwritable out/ on the deploy host (bind mount owned by
+        another uid) cost the UI its Run button that way. Reason goes in write_error.
+        """
         if not self.calls:
             return None
-        OUT_DIR.mkdir(exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         path = OUT_DIR / f"{stamp}-{self.provider}.json"
-        path.write_text(
-            json.dumps(
-                {
-                    "provider": self.provider,
-                    "model": self.model,
-                    "request": self.request,
-                    "calls": self.calls,
-                },
-                indent=2,
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
+        try:
+            OUT_DIR.mkdir(exist_ok=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "provider": self.provider,
+                        "model": self.model,
+                        "request": self.request,
+                        "calls": self.calls,
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            # PermissionError, ENOSPC, read-only fs — all the same from here.
+            self.write_error = f"could not write {path}: {exc}"
+            return None
         return path
 
 
