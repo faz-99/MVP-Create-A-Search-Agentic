@@ -354,17 +354,20 @@ class GatewayLLM:
     """Intelligize gateway adapter — `POST /api/IntelligizeAI`.
 
     Models are addressed by (account_type, endpoint_secret_key), and the endpoint is
-    text-in/text-out: one prompt string, one string back. No tool surface, no message
-    array, no usage. Tool calling therefore lives in the prompt (_GATEWAY_PROTOCOL),
-    with two consequences:
+    text-in/text-out: one prompt string, one string back. No tool surface and no
+    message array, so tool calling lives in the prompt (_GATEWAY_PROTOCOL), with two
+    consequences:
 
-      - Token counts are 0 here. The gateway reports no usage, and an estimate would
-        read as measured next to Bedrock's. Timings are real on both.
       - Protocol compliance is prompt-level. A reply that ignores it becomes a final
-        answer rather than a malformed tool call.
+        answer rather than a malformed tool call. Verified compliant for Gemini 3
+        Flash, Claude and GPT-5.x.
+      - Token counts are 0 on the Bedrock and OpenAI keys, which report no usage; an
+        estimate would read as measured next to Bedrock's. The Gemini keys do report
+        usage, so their counts are real. Timings are real on all of them.
 
     Worth it for the model list: real GPT-5.x and Gemini ids, unlike Bedrock's
-    open-weight `gpt-oss`.
+    open-weight `gpt-oss`. Gemini is reachable *only* here — neither Bedrock Converse
+    nor the Anthropic SDK serves it.
     """
 
     def __init__(
@@ -428,15 +431,15 @@ class GatewayLLM:
                 f"us-east-1 --profile <dev profile>\n({type(exc).__name__}: {exc})"
             ) from exc
 
-        text = _unwrap_gateway_text(response.text or "")
+        text, tokens_in, tokens_out = _unwrap_gateway_reply(response.text or "")
         parsed = _parse_gateway_reply(text)
         return Completion(
             text=parsed[0],
             tool_calls=parsed[1],
             stop_reason="tool_use" if parsed[1] else "end_turn",
-            # No usage from the gateway; see the class docstring.
-            input_tokens=0,
-            output_tokens=0,
+            # Real on Gemini keys, 0 everywhere else — see _unwrap_gateway_reply.
+            input_tokens=tokens_in,
+            output_tokens=tokens_out,
             raw={"prompt_chars": len(prompt), "response_chars": len(text)},
         )
 
@@ -487,20 +490,57 @@ def _render_gateway_message(message: dict[str, Any]) -> str:
 
 def _unwrap_gateway_text(raw: str) -> str:
     """The gateway sometimes returns a JSON-encoded string rather than raw text."""
+    return _unwrap_gateway_reply(raw)[0]
+
+
+def _unwrap_gateway_reply(raw: str) -> tuple[str, int, int]:
+    """(text, input_tokens, output_tokens) from a gateway reply.
+
+    Three response shapes are in play, because the gateway does not normalise them:
+
+      - Bedrock / OpenAI keys return a JSON-encoded string, or a small dict under one
+        of a few keys. No usage is reported, so their token counts stay 0.
+      - Gemini keys pass the Vertex response straight through, so the answer is at
+        candidates[].content.parts[]. Two consequences. The parts include the model's
+        reasoning, flagged `thought: true` — it must be dropped, or the chain-of-
+        thought lands in the plan and the tool-call JSON is buried in prose. And the
+        body carries `usageMetadata`, which makes Gemini the one gateway model whose
+        token counts are real rather than 0.
+    """
     text = (raw or "").strip()
     try:
         decoded = json.loads(text)
     except (json.JSONDecodeError, ValueError):
-        return text
+        return (text, 0, 0)
+
     if isinstance(decoded, str):
-        return decoded.strip()
-    # Some endpoint keys return a dict instead.
+        return (decoded.strip(), 0, 0)
+
     if isinstance(decoded, dict):
+        candidates = decoded.get("candidates")
+        if isinstance(candidates, list) and candidates:
+            first = candidates[0] if isinstance(candidates[0], dict) else {}
+            parts = (first.get("content") or {}).get("parts") or []
+            answer = "\n".join(
+                part.get("text", "")
+                for part in parts
+                if isinstance(part, dict) and not part.get("thought") and part.get("text")
+            ).strip()
+            usage = decoded.get("usageMetadata") or {}
+            # Thinking tokens are billed as output even though the text is discarded,
+            # so counting only candidatesTokenCount would understate the turn badly —
+            # on short replies the reasoning is the larger half.
+            output = int(usage.get("candidatesTokenCount") or 0) + int(
+                usage.get("thoughtsTokenCount") or 0
+            )
+            return (answer, int(usage.get("promptTokenCount") or 0), output)
+
         for key in ("response", "content", "text", "result", "answer"):
             value = decoded.get(key)
             if isinstance(value, str):
-                return value.strip()
-    return text
+                return (value.strip(), 0, 0)
+
+    return (text, 0, 0)
 
 
 def _parse_gateway_reply(text: str) -> tuple[str, list[ToolCall]]:

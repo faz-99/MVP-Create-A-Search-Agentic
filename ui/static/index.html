@@ -49,6 +49,9 @@
   button:disabled { opacity: .42; cursor: not-allowed; }
   fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: .9rem; align-items: center; }
   fieldset label { display: flex; gap: .35rem; align-items: center; cursor: pointer; font-size: .9rem; }
+  .model-pick { display: flex; gap: .4rem; align-items: center; font-size: .9rem; }
+  .model-pick select { font: inherit; padding: .2rem .3rem; }
+  .model-pick select:disabled { color: #555; }
   pre {
     background: var(--code-bg); border: 1px solid var(--border); border-radius: 7px;
     padding: .75rem .85rem; margin: 0; overflow-x: auto; white-space: pre-wrap;
@@ -106,6 +109,9 @@
         <label><input type="radio" name="provider" value="claude" checked> Claude SDK</label>
         <label><input type="radio" name="provider" value="openai"> OpenAI SDK</label>
       </fieldset>
+      <label class="model-pick" title="Which model drives the tool loop">
+        Model <select id="model"></select>
+      </label>
       <button id="build">Create search</button>
       <span id="build-status" class="status"></span>
     </div>
@@ -191,17 +197,39 @@ const $ = (id) => document.getElementById(id);
 const show = (id) => $(id).classList.remove("hidden");
 const hide = (id) => $(id).classList.add("hidden");
 const provider = () => document.querySelector('input[name="provider"]:checked').value;
+const model = () => $("model").value || null;
 
 let lastResults = null;
+let legs = [];
 
-/** Add any leg this instance offers beyond the two in the markup. Additive: if the
- *  fetch fails or only the Bedrock legs come back, the fieldset is unchanged. */
+/** Repoint the model picker at whichever leg is selected. The legs offer different
+ *  models — only the gateway reaches Gemini — so this reruns on every leg change. */
+function renderModels() {
+  const leg = legs.find((p) => p.value === provider());
+  const select = $("model");
+  const models = (leg && leg.models) || [];
+  select.innerHTML = "";
+  for (const m of models) {
+    const option = document.createElement("option");
+    option.value = m.value;
+    option.textContent = m.label;
+    option.selected = leg && m.value === leg.default;
+    select.appendChild(option);
+  }
+  // A single fixed id is not a choice — show what will run, but don't imply otherwise.
+  select.disabled = models.length < 2;
+}
+
+/** Add any leg this instance offers beyond the two in the markup, then fill the model
+ *  picker. Additive: if the fetch fails, the fieldset is unchanged and the picker
+ *  stays empty, which sends model=null and lands on each leg's default. */
 (async () => {
   try {
     const r = await fetch("/api/providers");
     if (!r.ok) return;
-    const { providers } = await r.json();
-    for (const p of providers || []) {
+    const { providers, selected } = await r.json();
+    legs = providers || [];
+    for (const p of legs) {
       if (document.querySelector(`input[name="provider"][value="${p.value}"]`)) continue;
       const label = document.createElement("label");
       if (p.note) label.title = p.note;
@@ -212,6 +240,10 @@ let lastResults = null;
       label.append(input, " " + p.label);
       $("provider").appendChild(label);
     }
+    const preferred = document.querySelector(`input[name="provider"][value="${selected}"]`);
+    if (preferred) preferred.checked = true;
+    $("provider").addEventListener("change", renderModels);
+    renderModels();
   } catch { /* leave the default legs in place */ }
 })();
 
@@ -264,7 +296,7 @@ $("build").addEventListener("click", async () => {
   $("build-status").textContent = "working…";
 
   try {
-    await streamPost("/api/build", { query, provider: provider() }, (event) => {
+    await streamPost("/api/build", { query, provider: provider(), model: model() }, (event) => {
       switch (event.type) {
         case "status":
           $("build-status").textContent = event.text;

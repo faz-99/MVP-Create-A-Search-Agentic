@@ -86,6 +86,7 @@ probe/probe_mcp.py           enumerate the tool surface, check the gate
 ui/server.py                 FastAPI: /api/build, /api/run, /api/analyze, /api/tools
 ui/static/index.html         single-page UI, no build step
 docs/                        reference material
+docs/system-diagram-openai.png   system diagram, OpenAI leg (.html is its source)
 out/                         captured runs (gitignored)
 ```
 
@@ -177,14 +178,37 @@ Also: the Anthropic SDK's Mantle client is a separate IAM surface and 403s
 |---|---|---|
 | `claude` | Bedrock Converse, `us.anthropic.claude-sonnet-4-20250514-v1:0` | same |
 | `openai` | falls back to Bedrock `openai.gpt-oss-120b-1:0` | OpenAI SDK → AWS OpenAI-compatible endpoint |
-| `gateway-claude` | Intelligize gateway, `aws_bedrock_claude_4_sonnet` | not offered |
-| `gateway-openai` | Intelligize gateway, `open_ai_gpt_5_2_2025_12_11` | not offered |
+| `gateway` | Intelligize gateway, **`gemini_3_flash` by default**, 16 ids selectable | not offered |
 
-The gateway legs are **local only** and hidden unless `ENABLE_GATEWAY_LEGS=1`. They
-exist because Bedrock access is an IAM grant a dev machine may lose — and because the
-gateway is the only route to a real GPT-5.x id. The UI asks `/api/providers` for the
-list rather than hardcoding it, so the deploy host shows exactly the two Bedrock legs
-it can actually run.
+The gateway leg is **local only** and hidden unless `ENABLE_GATEWAY_LEGS=1`. It exists
+because Bedrock access is an IAM grant a dev machine may lose, and because it is the
+only route to a real GPT-5.x id — or to Gemini at all. The UI asks `/api/providers` for
+the list rather than hardcoding it, so the deploy host shows exactly the two Bedrock
+legs it can actually run.
+
+### Picking a model
+
+The **Model** dropdown next to the leg picker chooses the id that drives the loop. The
+list is per-leg, because the legs do not serve the same models:
+
+- **Gateway** — every id in `GATEWAY_MODELS`, defaulting to **Gemini 3 Flash**. Where
+  the gateway is available the UI opens on this leg, so the default run is Gemini
+  rather than Bedrock. `aws_bedrock_claude_4_sonnet` and `open_ai_gpt_5_2_2025_12_11`,
+  which used to be the two gateway legs, are still in the list.
+- **Claude / OpenAI SDK** — one fixed id each, so the control is disabled. The id is
+  set by the environment, and the `us.` prefix rule differs by family (required for
+  Anthropic, rejected for `gpt-oss`), so an unverified id there fails at invoke time.
+  The picker offers only what has been checked.
+
+`account_type` travels with the id and is not cosmetic: **Gemini answers only on
+account 6**. On account 2 it returns `204 No Content` with an empty body, which the
+adapter cannot distinguish from a model that said nothing — so a wrong account looks
+like a silent model failure, not a routing error. `gateway_account_type()` keeps the
+two together.
+
+> **Gemini runs on the gateway only.** Neither Bedrock Converse nor the Anthropic SDK
+> serves Gemini, so there is no Gemini-on-the-Claude-SDK leg to build. What is shared
+> across legs is the loop in `shared/loop.py`, not the transport.
 
 The OpenAI leg is meant to run the **OpenAI SDK against an AWS-hosted
 OpenAI-compatible endpoint**, which only works on the deploy target. That surface is
@@ -195,7 +219,8 @@ family over Converse — the leg stays exercisable in dev and switches automatic
 
 > **`gpt-oss` is not GPT-5.x.** Bedrock does not serve `open_ai_gpt_5_2_2025_12_11`.
 > Do not read a local gpt-oss result as a verdict on the OpenAI leg. For a real
-> GPT-5.2 comparison use the `gateway-openai` leg, which addresses that id directly.
+> GPT-5.2 comparison use the `gateway` leg with **GPT-5.2** picked in the Model
+> dropdown, which addresses that id directly.
 
 ### The gateway is text-only, and drives the loop anyway
 
@@ -211,12 +236,21 @@ rendered into the prompt, the model replies with
 gateway, reused rather than reinvented because it is what these models comply with.
 Two things follow, both worth knowing before reading the numbers:
 
-- **Token columns are 0 on gateway legs.** The gateway reports no usage. An estimate
-  would sit next to Bedrock's measured counts and read as if it were measured too.
-  Timings are real on both.
+- **Token columns are 0 on the Bedrock and OpenAI gateway ids**, which report no usage.
+  An estimate would sit next to Bedrock's measured counts and read as if it were
+  measured too. **Gemini is the exception** — it returns `usageMetadata`, so its counts
+  are real. Timings are real on all of them.
 - **Protocol compliance is prompt-level.** On Bedrock a malformed tool call cannot
   happen; here it is merely unlikely, and a reply that ignores the protocol is treated
-  as a final answer.
+  as a final answer. Verified compliant for Gemini 3 Flash, which emitted valid
+  tool-call JSON on every turn of a full build.
+
+Gemini needs two things the other ids do not, both handled in `_unwrap_gateway_reply`.
+Its replies come back in the **Vertex response shape** (`candidates[].content.parts[]`)
+rather than as a JSON string, and those parts include the model's reasoning flagged
+`thought: true`. The reasoning must be dropped — left in, it buries the tool-call JSON
+in prose and lands the chain-of-thought in the plan. Its `thoughtsTokenCount` is added
+to the output total, since reasoning is billed even though the text is discarded.
 
 A final answer stays plain text rather than being wrapped in the protocol JSON — the
 build prompt already requires a trailing fenced JSON block, and nesting a fenced block

@@ -19,40 +19,52 @@ MCP_SERVER_NAME = "ddc4"
 INTELLIGIZE_ACCOUNT_BEDROCK = 2
 INTELLIGIZE_ACCOUNT_GEMINI = 6
 
-# Selected per the project decision: sonnet 4 on the Claude side, gpt 5.2 on the
-# OpenAI side.
-CLAUDE_ENDPOINT_KEY = "aws_bedrock_claude_4_sonnet"
-CLAUDE_ACCOUNT_TYPE = INTELLIGIZE_ACCOUNT_BEDROCK
-
-OPENAI_ENDPOINT_KEY = "open_ai_gpt_5_2_2025_12_11"
-OPENAI_ACCOUNT_TYPE = INTELLIGIZE_ACCOUNT_BEDROCK
-
-# Other keys available through the gateway, for A/B runs.
-AVAILABLE_ENDPOINT_KEYS = {
-    "bedrock": [
-        "aws_bedrock_claude_4_5_sonnet",
-        "aws_bedrock_claude_4_sonnet",
-        "aws_bedrock_claude_3_5_sonnet",
-        "aws_bedrock_claude_3_sonnet",
-        "aws_bedrock_claude_3_haiku",
-    ],
-    "openai": [
-        "open-ai-gpt-5.5-2026-04-23",
-        "open_ai_gpt_5_4_2026_03_05",
-        "open_ai_gpt_5_4_mini_2026_03_17",
-        "open_ai_gpt_5_2_2025_12_11_priority",
-        "open_ai_gpt_5_2_2025_12_11",
-        "open_ai_gpt_5_1_2025_11_13",
-        "open_ai_gpt_5_2025_08_07",
-        "open_ai_gpt_5_mini_2025_08_07",
-        "open_ai_gpt_4_1",
-    ],
-    "gemini": [
-        "gemini_3_pro",
-        "gemini_3_flash",
-        "gemini_2_5_flash",
-    ],
+# Gateway model registry — every id the model picker offers, in display order.
+#
+# `account` is part of the routing, not decoration. A Gemini key on account 2 answers
+# `204 No Content` with an empty body, which the adapter cannot tell apart from a model
+# that simply said nothing, so getting this wrong looks like a silent model failure.
+GATEWAY_MODELS: dict[str, dict[str, object]] = {
+    "gemini_3_flash": {"label": "Gemini 3 Flash", "account": INTELLIGIZE_ACCOUNT_GEMINI},
+    "gemini_3_pro": {"label": "Gemini 3 Pro", "account": INTELLIGIZE_ACCOUNT_GEMINI},
+    "gemini_2_5_flash": {"label": "Gemini 2.5 Flash", "account": INTELLIGIZE_ACCOUNT_GEMINI},
+    "aws_bedrock_claude_4_5_sonnet": {"label": "Claude 4.5 Sonnet", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "aws_bedrock_claude_4_sonnet": {"label": "Claude 4 Sonnet", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "aws_bedrock_claude_3_5_sonnet": {"label": "Claude 3.5 Sonnet", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "aws_bedrock_claude_3_sonnet": {"label": "Claude 3 Sonnet", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "aws_bedrock_claude_3_haiku": {"label": "Claude 3 Haiku", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open-ai-gpt-5.5-2026-04-23": {"label": "GPT-5.5", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_4_2026_03_05": {"label": "GPT-5.4", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_4_mini_2026_03_17": {"label": "GPT-5.4 mini", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_2_2025_12_11": {"label": "GPT-5.2", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_1_2025_11_13": {"label": "GPT-5.1", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_2025_08_07": {"label": "GPT-5", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_5_mini_2025_08_07": {"label": "GPT-5 mini", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
+    "open_ai_gpt_4_1": {"label": "GPT-4.1", "account": INTELLIGIZE_ACCOUNT_BEDROCK},
 }
+
+# The model both gateway legs run unless the picker says otherwise. Replaced
+# aws_bedrock_claude_4_sonnet / open_ai_gpt_5_2_2025_12_11 — those stay selectable.
+DEFAULT_GATEWAY_MODEL = "gemini_3_flash"
+
+CLAUDE_ENDPOINT_KEY = DEFAULT_GATEWAY_MODEL
+OPENAI_ENDPOINT_KEY = DEFAULT_GATEWAY_MODEL
+
+
+def gateway_account_type(endpoint_secret_key: str) -> int:
+    """Routing account for a gateway model id.
+
+    Unknown ids fall back to the Bedrock account rather than raising, so a key added
+    to the gateway before it is added here is still callable.
+    """
+    entry = GATEWAY_MODELS.get(endpoint_secret_key)
+    if entry:
+        return int(entry["account"])  # type: ignore[arg-type]
+    return INTELLIGIZE_ACCOUNT_BEDROCK
+
+
+CLAUDE_ACCOUNT_TYPE = gateway_account_type(CLAUDE_ENDPOINT_KEY)
+OPENAI_ACCOUNT_TYPE = gateway_account_type(OPENAI_ENDPOINT_KEY)
 
 # Intelligize AI gateway. Since 2026-07-27 the public host answers `403 Access AI API
 # using SSM port forwarding.`, so the default is the forwarded local port — see the
