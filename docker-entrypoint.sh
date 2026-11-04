@@ -2,12 +2,13 @@
 # =============================================================================
 # Container entrypoint — runs as the `searchagent` user (UID 1000).
 #
-# Starts the FastAPI UI. Captured runs are written to /app/out, which
-# docker-compose mounts from the host so history survives rebuilds.
+# Starts the Create Search API and its test page (api.server:app). Set
+# APP_MODULE=ui.server:app to serve the old POC instead. Captured runs are written
+# to /app/out, which docker-compose mounts from the host so history survives rebuilds.
 #
-# `exec "$@"` lets you override the command (e.g. run a CLI agent instead of the
+# `exec "$@"` lets you override the command (e.g. run the CLI instead of the
 # server) while still getting tini as PID 1:
-#   docker compose run --rm create-search python -m agent_claude.agent "8-K ..."
+#   docker compose run --rm create-search python -m create_search "8-Ks of Apple"
 #
 # The guard on "[" catches a common Docker mistake — an unquoted JSON-style CMD
 # such as `CMD [uvicorn, ui.server:app]` makes /bin/sh try to run "[uvicorn," and
@@ -30,14 +31,22 @@ fi
 
 APP_HOST="${APP_HOST:-0.0.0.0}"
 APP_PORT="${APP_PORT:-8080}"
+APP_MODULE="${APP_MODULE:-api.server:app}"
 
 # Fail fast with a readable message rather than a stack trace on the first
 # request. The cookie expires, so a missing or stale value is the single most
-# likely reason a fresh deployment does not work.
+# likely reason a fresh deployment does not work. A request's own `lna` cookie or
+# header takes precedence; this is the fallback outside ENV=prod.
 if [ -z "${LEXIS_SSO_COOKIE:-}" ]; then
   echo "[entrypoint] WARNING: LEXIS_SSO_COOKIE is not set." >&2
-  echo "[entrypoint]   MCP calls will fail with 401 until it is provided via" >&2
-  echo "[entrypoint]   env_file (.env) or the environment. The UI will still start." >&2
+  echo "[entrypoint]   Requests without an lna cookie/header will get 403 until it is" >&2
+  echo "[entrypoint]   provided via env_file (.env). The page will still load." >&2
+fi
+
+# The OpenAI loop reads its model keys from Secrets Manager (as agentv4).
+if [ "$APP_MODULE" = "api.server:app" ] && [ -z "${MODELS_SECRETS:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+  echo "[entrypoint] WARNING: neither MODELS_SECRETS nor OPENAI_API_KEY is set." >&2
+  echo "[entrypoint]   The OpenAI provider will fail; Claude (Bedrock) is unaffected." >&2
 fi
 
 if [ "$#" -gt 0 ]; then
@@ -51,5 +60,5 @@ if [ "$#" -gt 0 ]; then
   esac
 fi
 
-echo "[entrypoint] starting uvicorn on ${APP_HOST}:${APP_PORT}"
-exec python -m uvicorn ui.server:app --host "$APP_HOST" --port "$APP_PORT"
+echo "[entrypoint] starting ${APP_MODULE} on ${APP_HOST}:${APP_PORT}"
+exec python -m uvicorn "$APP_MODULE" --host "$APP_HOST" --port "$APP_PORT"

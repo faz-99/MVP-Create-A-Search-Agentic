@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 700" width="1100" height="700" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Agentic Create Search: architecture</title>
+  <style>
+    .bg { fill: #fbfbfa; }
+    .box { fill: #ffffff; stroke: #c9c5bf; stroke-width: 1.2; }
+    .core { fill: #eef2f8; stroke: #3d5a8a; stroke-width: 1.4; }
+    .ext { fill: #f5f1ea; stroke: #a08660; stroke-width: 1.2; }
+    .store { fill: #f3f5f1; stroke: #8a9a80; stroke-width: 1.2; }
+    .frame { fill: none; stroke: #8f8a83; stroke-width: 1.2; stroke-dasharray: 6 5; }
+    .t { fill: #23211e; font-size: 13px; font-weight: 600; }
+    .s { fill: #5f5a53; font-size: 11.5px; }
+    .lbl { fill: #6f6a63; font-size: 11px; }
+    .frame-lbl { fill: #6f6a63; font-size: 12px; font-weight: 600; }
+    .arrow { stroke: #4a4640; stroke-width: 1.4; fill: none; }
+    .dash { stroke: #4a4640; stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+    .head { fill: #4a4640; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #16181a; }
+      .box { fill: #1d2023; stroke: #3d4349; }
+      .core { fill: #1c2633; stroke: #7ea3d8; }
+      .ext { fill: #262219; stroke: #a8916a; }
+      .store { fill: #1e241d; stroke: #7f9476; }
+      .frame { stroke: #6f6a63; }
+      .t { fill: #e6e4e1; }
+      .s, .lbl, .frame-lbl { fill: #a29c94; }
+      .arrow, .dash { stroke: #c9c5bf; }
+      .head { fill: #c9c5bf; }
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="head"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="700"/>
+
+  <!-- Container boundary -->
+  <rect class="frame" x="205" y="30" width="555" height="645" rx="12"/>
+  <text class="frame-lbl" x="222" y="52">Docker container "create-search" · port 8080 → host 6073</text>
+
+  <!-- Callers -->
+  <rect class="box" x="20" y="95" width="160" height="80" rx="8"/>
+  <text class="t" x="34" y="120">Browser</text>
+  <text class="s" x="34" y="140">test page at /</text>
+  <text class="s" x="34" y="157">(api/static/index.html)</text>
+
+  <rect class="box" x="20" y="205" width="160" height="62" rx="8"/>
+  <text class="t" x="34" y="230">CLI</text>
+  <text class="s" x="34" y="250">python -m create_search</text>
+
+  <!-- api/server.py -->
+  <rect class="box" x="230" y="70" width="500" height="100" rx="8"/>
+  <text class="t" x="246" y="94">api/server.py · FastAPI</text>
+  <text class="s" x="246" y="116">POST /api/create-search (SSE, pings) · PUT /api/create-search/stop</text>
+  <text class="s" x="246" y="134">POST /api/run · GET /api/models · /api/tools · /api/health · /</text>
+  <text class="s" x="246" y="152">lna token: cookie → header → LEXIS_SSO_COOKIE (not in prod)</text>
+
+  <!-- run.py -->
+  <rect class="box" x="230" y="200" width="500" height="62" rx="8"/>
+  <text class="t" x="246" y="224">create_search.run</text>
+  <text class="s" x="246" y="245">input check · tools/list · select_tools(apps) · drift check · system prompt</text>
+
+  <!-- Loops -->
+  <rect class="box" x="230" y="292" width="500" height="50" rx="8"/>
+  <text class="t" x="246" y="314">OpenAI loop</text>
+  <text class="s" x="246" y="332">OpenAI Agents SDK · Responses API · default provider</text>
+
+  <rect class="box" x="230" y="352" width="500" height="50" rx="8"/>
+  <text class="t" x="246" y="374">Claude loop</text>
+  <text class="s" x="246" y="392">Anthropic SDK on Bedrock · thinking passed back · prompt caching</text>
+
+  <!-- Executor -->
+  <rect class="core" x="230" y="432" width="500" height="138" rx="8"/>
+  <text class="t" x="246" y="456">ToolExecutor · shared by both loops</text>
+  <text class="s" x="246" y="480">• validates every call against its schema</text>
+  <text class="s" x="246" y="499">• searches: max 5 runs, 5-row preview</text>
+  <text class="s" x="246" y="518">• identical calls answered from cache</text>
+  <text class="s" x="246" y="537">• lookups cut at 6,000 chars</text>
+  <text class="s" x="246" y="556">• 403 → "not entitled"</text>
+  <text class="s" x="490" y="480">• report_strategy → early strategy event</text>
+  <text class="s" x="490" y="499">• submit_search → validate, then accept</text>
+  <text class="s" x="502" y="518">or return the errors to the model</text>
+  <text class="s" x="490" y="537">• limits: 20 turns, 40 tool calls</text>
+  <text class="s" x="490" y="556">• fallback: last valid search</text>
+
+  <!-- Stores -->
+  <rect class="store" x="230" y="600" width="240" height="56" rx="8"/>
+  <text class="t" x="246" y="624">out/</text>
+  <text class="s" x="246" y="643">one JSON capture per run</text>
+
+  <rect class="store" x="490" y="600" width="240" height="56" rx="8"/>
+  <text class="t" x="506" y="624">storage/</text>
+  <text class="s" x="506" y="643">stop requests per run id</text>
+
+  <!-- External services -->
+  <rect class="ext" x="820" y="190" width="260" height="56" rx="8"/>
+  <text class="t" x="836" y="214">AWS Secrets Manager</text>
+  <text class="s" x="836" y="233">MODELS_SECRETS · open_ai_* keys</text>
+
+  <rect class="ext" x="820" y="292" width="260" height="50" rx="8"/>
+  <text class="t" x="836" y="314">OpenAI-compatible endpoint</text>
+  <text class="s" x="836" y="332">GPT-5.x, Responses API</text>
+
+  <rect class="ext" x="820" y="352" width="260" height="50" rx="8"/>
+  <text class="t" x="836" y="374">AWS Bedrock</text>
+  <text class="s" x="836" y="392">Claude, via the instance role</text>
+
+  <rect class="ext" x="820" y="440" width="260" height="110" rx="8"/>
+  <text class="t" x="836" y="464">Intelligize MCP server</text>
+  <text class="s" x="836" y="485">73 tools: searches, lookups, content</text>
+  <text class="s" x="836" y="503">auth: lna header</text>
+  <text class="s" x="836" y="521">content tools never exposed</text>
+  <text class="s" x="836" y="539">retries 503s from unhealthy pods</text>
+
+  <!-- Arrows: callers -->
+  <path class="arrow" d="M180,135 L228,125" marker-end="url(#a)"/>
+  <path class="arrow" d="M180,236 L228,231" marker-end="url(#a)"/>
+
+  <!-- Arrows: internal flow -->
+  <path class="arrow" d="M480,170 L480,198" marker-end="url(#a)"/>
+  <path class="arrow" d="M480,262 L480,290" marker-end="url(#a)"/>
+  <path class="arrow" d="M480,402 L480,430" marker-end="url(#a)"/>
+  <path class="arrow" d="M350,570 L350,598" marker-end="url(#a)"/>
+  <path class="arrow" d="M610,570 L610,598" marker-end="url(#a)"/>
+
+  <!-- Arrows: models -->
+  <path class="dash" d="M820,218 L740,300" marker-end="url(#a)"/>
+  <text class="lbl" x="770" y="242">keys</text>
+  <path class="arrow" d="M730,317 L818,317" marker-end="url(#a)"/>
+  <path class="arrow" d="M730,377 L818,377" marker-end="url(#a)"/>
+
+  <!-- Arrows: MCP -->
+  <path class="arrow" d="M730,500 L818,500" marker-end="url(#a)"/>
+  <text class="lbl" x="748" y="492">tools/call</text>
+  <path class="dash" d="M730,100 L795,100 L795,465 L818,465" marker-end="url(#a)"/>
+  <text class="lbl" x="800" y="96">/api/run (validated again)</text>
+</svg>

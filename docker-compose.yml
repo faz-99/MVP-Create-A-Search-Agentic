@@ -6,7 +6,7 @@
 # Logs:       docker compose logs -f create-search
 # Rebuild:    docker compose build --no-cache      (after requirements change)
 # Shell:      docker compose exec create-search bash
-# One-off:    docker compose run --rm create-search python -m probe.probe_mcp
+# One-off:    docker compose run --rm create-search python -m create_search "8-Ks of Apple"
 # =============================================================================
 
 services:
@@ -24,8 +24,8 @@ services:
     ports:
       - "6073:8080"
 
-    # Supplies LEXIS_SSO_COOKIE and, on the deploy target, the OpenAI-compatible
-    # endpoint credentials. Must exist before `up` — copy from .env.example.
+    # Supplies LEXIS_SSO_COOKIE and MODELS_SECRETS (the Secrets Manager name holding
+    # the OpenAI model keys). Must exist before `up` — copy from .env.example.
     # docker-compose strips surrounding quotes from values automatically.
     env_file:
       - .env
@@ -33,12 +33,21 @@ services:
     environment:
       APP_HOST: "0.0.0.0"
       APP_PORT: "8080"
+      # api.server:app is the agentic Create Search (create_search/). Set
+      # APP_MODULE=ui.server:app in .env to serve the old POC instead.
+      APP_MODULE: "${APP_MODULE:-api.server:app}"
+      # Anything but "prod" keeps the API docs at /docs and lets requests without an
+      # lna cookie/header fall back to LEXIS_SSO_COOKIE. With "prod", every request
+      # must bring its own lna cookie or header.
+      ENV: "${ENV:-dev}"
 
       # No AWS_PROFILE here on purpose. Forcing a profile name breaks any host
       # that lacks it — on the deploy server boto3 raised ProfileNotFound even
       # though the instance role was available and working. Unset, boto3 uses its
       # normal chain: env vars, then the default profile, then the instance/task
       # role. Add AWS_PROFILE to .env only if a specific named profile is needed.
+      # The same chain serves Bedrock (Claude) and Secrets Manager (OpenAI keys), so
+      # the instance role needs secretsmanager:GetSecretValue on MODELS_SECRETS.
       AWS_REGION: "${AWS_REGION:-us-east-1}"
 
       # Python writes .pyc into the read-only-ish image layer otherwise, and
@@ -62,7 +71,7 @@ services:
 
     restart: unless-stopped
 
-    # `/` is served from static files and does not touch the MCP server, so this
+    # `/` is a static page (in both apps) and does not touch the MCP server, so this
     # probe reports process health without depending on an upstream that is known
     # to return intermittent 503s from unhealthy pods. Probing /api/tools instead
     # would mark the container unhealthy for someone else's outage.

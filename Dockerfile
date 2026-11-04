@@ -1,8 +1,9 @@
 # =============================================================================
 # AI Create Search — Dockerfile
 # =============================================================================
-# Builds a self-contained image running the FastAPI UI + the client-side MCP
-# tool loop. Separate image from any other project in this repo.
+# Builds a self-contained image running the Create Search API (api.server:app,
+# the agentic create_search/ package) and its test page. The old POC UI is in the
+# same image and can be served instead with APP_MODULE=ui.server:app.
 #
 # Build:  docker compose build
 # Run:    docker compose up -d
@@ -15,7 +16,8 @@ FROM python:3.13-slim-bookworm
 # OS-level deps:
 #   - tini            — proper PID 1, so `docker stop` forwards SIGTERM and
 #                       uvicorn shuts down instead of being killed at timeout
-#   - ca-certificates — outbound HTTPS to *.intelligize.net and AWS Bedrock
+#   - ca-certificates — outbound HTTPS to *.intelligize.net, AWS Bedrock and the
+#                       OpenAI endpoints
 #   - build-essential — only needed if a wheel is unpublished for this Python
 #                       version; dropped in the same layer to keep the image small
 RUN apt-get update \
@@ -43,9 +45,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY --chown=searchagent:searchagent . /app/
 
 # Captured runs land here. Mounted as a volume in docker-compose.yml so run
-# history survives rebuilds; shared/capture.py writes to a relative "out/" path,
-# which resolves to /app/out given WORKDIR.
-RUN mkdir -p /app/out && chown -R searchagent:searchagent /app
+# history survives rebuilds; both apps write to a relative "out/" path, which
+# resolves to /app/out given WORKDIR. /app/storage holds stop requests for
+# running searches (create_search/core/stop.py).
+RUN mkdir -p /app/out /app/storage && chown -R searchagent:searchagent /app
 
 # Normalise the entrypoint script:
 #   - strip a UTF-8 BOM: some Windows editors add one, and the kernel then reads

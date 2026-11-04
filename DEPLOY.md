@@ -44,14 +44,19 @@ LEXIS_SSO_COOKIE=<the LexisObSSOCookie value>
 These cookies expire. If the UI starts but every search 401s, this is the first
 thing to refresh.
 
-Optional, only for the OpenAI leg on the deploy target:
+For the OpenAI provider (the default) on the server:
 
 ```
-AWS_BEARER_TOKEN_BEDROCK=<bedrock api key>
-OPENAI_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1
+MODELS_SECRETS=<Secrets Manager name holding the open_ai_* model entries>
+DEFAULT_OPENAI_MODEL_KEY=<one of those entries>
 ```
 
-Leave those blank locally — the OpenAI leg falls back to Bedrock Converse.
+The keys are read from Secrets Manager at runtime, the same way agentv4 reads them,
+and never written to disk. The instance role needs `secretsmanager:GetSecretValue`
+on that secret. Claude needs nothing extra: it uses Bedrock through the same role.
+
+`AWS_BEARER_TOKEN_BEDROCK` / `OPENAI_BASE_URL` are only used by the old POC
+(`APP_MODULE=ui.server:app`).
 
 ---
 
@@ -109,53 +114,66 @@ docker compose logs -f create-search
 Expected in the logs:
 
 ```
-[entrypoint] starting uvicorn on 0.0.0.0:8080
+[entrypoint] starting api.server:app on 0.0.0.0:8080
 ```
 
-A `WARNING: LEXIS_SSO_COOKIE is not set` line means step 1 was skipped — the UI
-will load but every search will 401.
+A `WARNING: LEXIS_SSO_COOKIE is not set` line means step 1 was skipped. The page
+will load, but requests without their own `lna` cookie will get 403. A `neither
+MODELS_SECRETS nor OPENAI_API_KEY is set` warning means the OpenAI provider will
+fail. Claude still works.
 
 ---
 
 ## 5. Test
 
-**a. The UI is serving**
+**a. The page is serving**
 
 ```cmd
-curl -i http://127.0.0.1:6073/
+curl -i http://127.0.0.1:6073/api/health
 ```
 
-Expect `HTTP/1.1 200 OK`. Then open <http://127.0.0.1:6073> in a browser.
+Expect `{"ModuleName":"Create Search Agent"}`. Then open <http://127.0.0.1:6073> in a
+browser.
 
-**b. MCP auth and the tool gate work** — this is the real smoke test, since it
-proves the cookie, the network path, and the gate all at once:
+**b. MCP auth and tool selection work.** This is the real smoke test, since it
+proves the cookie, the network path and the bundles in one call:
 
 ```cmd
-curl http://127.0.0.1:6073/api/tools
+curl "http://127.0.0.1:6073/api/tools?apps=SF,AOE"
 ```
 
-Expect `"ok": true`, 63 tools, and 9 in `withheld_execute_tools`. If `ok` is
-`false`, read the `error` string — it distinguishes an expired cookie (401) from
-an upstream outage (503).
+Expect `search_tools` to list `sec_filings_search` and
+`aoe_search_agreements_and_exhibits`, plus 16 lookup tools. A 500 here is the MCP
+connection: an expired cookie or an upstream outage (see the logs).
 
-**c. Create a search end to end** (takes ~20–30s; it calls a model):
+**c. The model keys load**
 
 ```cmd
-curl -X POST http://127.0.0.1:6073/api/build -H "Content-Type: application/json" -d "{\"query\":\"8-K filings where the CEO resigned\",\"provider\":\"claude\"}"
+curl http://127.0.0.1:6073/api/models
 ```
 
-Watch for `"type": "step"` events with timings, then a `"type": "plan"` event with
-`"runnable": true`.
+`openai` should list the `open_ai_*` keys from `MODELS_SECRETS`. A single default
+model name here means the secret was not read.
 
-**d. The CLI, inside the container**
+**d. Create a search end to end** (takes ~20–60s; it calls a model):
 
 ```cmd
-docker compose run --rm create-search python -m probe.probe_mcp
-docker compose run --rm create-search python -m agent_claude.agent "8-K filings where the CEO resigned"
+curl -N -X POST http://127.0.0.1:6073/api/create-search -H "Content-Type: application/json" -d "{\"Query\":\"8-Ks of Apple filed this year\",\"Provider\":\"openai\"}"
 ```
 
-`probe_mcp` is the fastest way to confirm credentials and see whether the gate has
-drifted.
+Watch for `"kind": "step"` and `"kind": "strategy"` events, then a final
+`"kind": "done"` whose message has `"runnable": true` and `"source": "agent"`.
+Repeat with `"Provider":"claude"` to check Bedrock.
+
+**e. The CLI, inside the container**
+
+```cmd
+docker compose run --rm create-search python -m create_search "8-Ks of Apple filed this year"
+docker compose run --rm create-search python -m tests.test_executor_live
+```
+
+`test_executor_live` exercises the MCP tools without any model call, so it isolates
+credentials and network from model problems.
 
 ---
 
@@ -217,8 +235,8 @@ aws s3 ls --recursive s3://nbs-prod-backup/create_search_agent/ --profile intell
 ```
 
 Confirm `.env` is absent and `Dockerfile`, `docker-compose.yml`,
-`docker-entrypoint.sh`, `requirements.txt`, `prompts/`, `shared/`, `ui/` are all
-present.
+`docker-entrypoint.sh`, `requirements.txt`, `create_search/`, `api/`, `tests/`,
+`prompts/`, `shared/`, `ui/` are all present.
 
 ### 2. Pull on the server
 
@@ -292,12 +310,13 @@ docker compose logs -f create-search
 Then smoke-test on the server itself:
 
 ```bash
-curl -i http://127.0.0.1:6073/
-curl http://127.0.0.1:6073/api/tools
+curl -i http://127.0.0.1:6073/api/health
+curl "http://127.0.0.1:6073/api/tools?apps=SF,AOE"
+curl http://127.0.0.1:6073/api/models
 ```
 
-`/api/tools` returning `"ok": true` with 63 tools and 9 withheld proves the
-cookie, the network path to the MCP server, and the gate in one call.
+`/api/tools` listing the two search tools proves the cookie and the network path to
+the MCP server. `/api/models` listing the `open_ai_*` keys proves Secrets Manager.
 
 ### 5. Updating to a new version
 
@@ -389,10 +408,17 @@ Before that fix this error aborted the build phase *after* the model had finishe
 the UI showed results but no plan and therefore **no Run search button**. If you see
 the button missing, check the logs for this warning first.
 
-**`/api/tools` returns 503**
-Upstream, not you. The MCP host resolves to several pods behind an ELB and some
-return 503; the client already retries 6 times. If every attempt fails, the pool
-is genuinely unhealthy — wait and retry.
+**`/api/tools` fails with "Could not reach the server"**
+Usually upstream: the MCP host resolves to several pods behind an ELB and some
+return 503. The client already retries 5 times; if every attempt fails, the pool is
+unhealthy, so wait and retry. On a dev machine, also check for a full system drive.
+We saw this exact message when the drive holding TEMP had 0 bytes free.
+
+**OpenAI provider fails with "No OpenAI credentials"**
+`MODELS_SECRETS` is not reaching the container, or the secret could not be read.
+Check `docker compose exec create-search printenv MODELS_SECRETS`, then the logs for
+an `AccessDeniedException` from Secrets Manager (the role is missing
+`secretsmanager:GetSecretValue`).
 
 **`NoCredentialsError` / `ExpiredToken` from boto3**
 The `.aws` mount or the profile name is wrong. Verify inside the container:

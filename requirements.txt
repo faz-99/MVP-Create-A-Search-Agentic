@@ -12,8 +12,14 @@ boto3>=1.37.0
 # back to Bedrock.
 openai>=1.60.0
 
-# MCP client transport
-httpx>=0.27.0
+# MCP client transport. The http2 extra is needed by create_search's pooled transport.
+httpx[http2]>=0.27.0
+
+# create_search/ (the agentic Create Search): same versions as agentv4.
+#   openai-agents  — the OpenAI loop and the MCP client both loops use
+#   anthropic      — the Claude loop (AsyncAnthropicBedrock, as agentv4)
+openai-agents==0.19.4
+anthropic==0.120.2
 
 # Validates a created search against the live tool schema before it can be run
 jsonschema>=4.23.0
@@ -26,7 +32,5 @@ pydantic>=2.10.0
 # Loads .env locally; in the container the values come from env_file instead
 python-dotenv>=1.0.0
 
-# NOTE: the `anthropic` SDK is deliberately absent. Claude is reached through
-# Bedrock with AWS credentials, so nothing imports it — the direct API path was
-# removed after that key turned out to have no credit balance. Re-add it only if
-# a direct Anthropic path comes back.
+# NOTE: the POC legs (shared/) still reach Claude through Bedrock Converse and do
+# not import `anthropic`; only create_search/ does.

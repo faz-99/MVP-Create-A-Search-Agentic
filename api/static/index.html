@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Create Search</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #fff; --border: #e3e1dd; --text: #23211e;
+    --muted: #6f6a63; --accent: #3d5a8a; --accent-fg: #fff;
+    --code-bg: #f5f4f1; --warn: #8a4b2a; --ok: #2f6a4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181a; --panel: #1d2023; --border: #31363b; --text: #e6e4e1;
+      --muted: #9a948c; --accent: #7ea3d8; --accent-fg: #16181a;
+      --code-bg: #141618; --warn: #d9976a; --ok: #7cc9a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 .25rem; font-weight: 620; }
+  .sub { color: var(--muted); margin: 0 0 1.75rem; font-size: .9rem; }
+  section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+  }
+  h2 {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 .7rem; font-weight: 650;
+  }
+  textarea, input[type=text] {
+    width: 100%; background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px; padding: .65rem .75rem;
+    font: inherit; resize: vertical;
+  }
+  input.apps { width: 9rem; padding: .3rem .5rem; font-size: .9rem; }
+  textarea.mono { font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: .8rem; }
+  button {
+    background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 7px;
+    padding: .55rem 1.05rem; font: inherit; font-weight: 550; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: .42; cursor: not-allowed; }
+  fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: .9rem; align-items: center; }
+  fieldset label { display: flex; gap: .35rem; align-items: center; cursor: pointer; font-size: .9rem; }
+  .pick { display: flex; gap: .4rem; align-items: center; font-size: .9rem; }
+  .pick select { font: inherit; padding: .2rem .3rem; max-width: 16rem; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 7px;
+    padding: .75rem .85rem; margin: 0; overflow-x: auto; white-space: pre-wrap;
+    font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .thinking { color: var(--muted); font-style: italic; max-height: 17rem; overflow-y: auto; }
+  .trace { max-height: 20rem; overflow-y: auto; }
+  .strategy { white-space: pre-wrap; margin: 0; }
+  .status { color: var(--muted); font-size: .87rem; }
+  .hidden { display: none; }
+  .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .gate { color: var(--muted); font-size: .84rem; margin: .55rem 0 0; }
+  details summary { cursor: pointer; color: var(--muted); font-size: .84rem; }
+  label.field { display: block; font-size: .84rem; color: var(--muted); margin: .9rem 0 .35rem; }
+  .steps-wrap { overflow-x: auto; }
+  table.steps { border-collapse: collapse; width: 100%; font-size: .86rem; }
+  table.steps th, table.steps td {
+    text-align: left; padding: .34rem .6rem; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.steps th { color: var(--muted); font-weight: 600; font-size: .78rem;
+    text-transform: uppercase; letter-spacing: .05em; }
+  table.steps td.num { text-align: right; font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, Consolas, monospace; }
+  table.steps td.name { font-family: ui-monospace, Consolas, monospace; }
+  .kind { font-size: .72rem; padding: .08rem .4rem; border-radius: 4px;
+    background: var(--code-bg); border: 1px solid var(--border); }
+  .tiles { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: .8rem; }
+  .tile { background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: .5rem .8rem; min-width: 6.5rem; }
+  .tile .v { font-size: 1.15rem; font-weight: 620; font-variant-numeric: tabular-nums; }
+  .tile .k { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .05em; }
+  .source { font-size: .72rem; padding: .08rem .45rem; border-radius: 4px;
+    border: 1px solid var(--border); margin-left: .4rem; text-transform: none; letter-spacing: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Create Search</h1>
+  <p class="sub">
+    Builds one search and the instructions for analysing its results. The agent may
+    preview searches while it works; the full search only runs when you click Run.
+  </p>
+
+  <section>
+    <h2>Request</h2>
+    <textarea id="query" rows="3" placeholder="e.g. 8-Ks of Apple filed this year"></textarea>
+    <div class="row">
+      <fieldset id="provider">
+        <label><input type="radio" name="provider" value="openai" checked> OpenAI</label>
+        <label><input type="radio" name="provider" value="claude"> Claude</label>
+      </fieldset>
+      <label class="pick">Model <select id="model"></select></label>
+      <label class="pick" title="Comma-separated app bundles, or ALL">
+        Apps <input id="apps" class="apps" type="text" value="SF,AOE">
+      </label>
+      <label class="pick">Effort
+        <select id="effort">
+          <option>Low</option><option selected>Medium</option><option>High</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <button id="build">Create search</button>
+      <button id="stop" class="secondary" disabled>Stop</button>
+      <span id="build-status" class="status"></span>
+    </div>
+  </section>
+
+  <div id="notices"></div>
+
+  <section id="strategy-section" class="hidden">
+    <h2>Search strategy</h2>
+    <p id="strategy" class="strategy"></p>
+  </section>
+
+  <section id="thinking-section" class="hidden">
+    <h2>Reasoning</h2>
+    <pre id="thinking" class="thinking"></pre>
+  </section>
+
+  <section id="trace-section" class="hidden">
+    <details>
+      <summary id="trace-summary">Tool calls</summary>
+      <pre id="trace" class="trace"></pre>
+    </details>
+  </section>
+
+  <section id="steps-section" class="hidden">
+    <h2>Steps</h2>
+    <div id="tiles" class="tiles"></div>
+    <div class="steps-wrap">
+      <table class="steps">
+        <thead>
+          <tr><th>#</th><th>Kind</th><th>Step</th><th>Detail</th>
+              <th style="text-align:right">Time</th>
+              <th style="text-align:right">In</th>
+              <th style="text-align:right">Cached</th>
+              <th style="text-align:right">Out</th></tr>
+        </thead>
+        <tbody id="steps-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="plan-section" class="hidden">
+    <h2>Created search <span id="source" class="source"></span></h2>
+    <div id="plan-warnings"></div>
+
+    <label class="field" for="tool">Search tool this runs against</label>
+    <input id="tool" type="text" readonly>
+
+    <label class="field" for="payload">Search to run (you can edit it before running)</label>
+    <textarea id="payload" class="mono" rows="12"></textarea>
+
+    <label class="field" for="instructions">Analysis instructions (editable)</label>
+    <textarea id="instructions" rows="6"></textarea>
+
+    <div class="row">
+      <button id="run">Run search</button>
+      <span id="run-status" class="status"></span>
+    </div>
+  </section>
+
+  <section id="results-section" class="hidden">
+    <h2>Results</h2>
+    <details open>
+      <summary id="results-summary">Raw results</summary>
+      <pre id="results"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (id) => $(id).classList.remove("hidden");
+const hide = (id) => $(id).classList.add("hidden");
+const provider = () => document.querySelector('input[name="provider"]:checked').value;
+
+let models = null;
+let runId = null;
+
+/** Fill the model picker for the selected provider from /api/models. */
+function renderModels() {
+  const select = $("model");
+  select.innerHTML = "";
+  if (!models) return;
+  const p = provider();
+  const list = models[p] || [];
+  const preferred = p === "openai" ? models.DefaultOpenai : models.DefaultClaude;
+  for (const m of list) {
+    const option = document.createElement("option");
+    option.value = option.textContent = m;
+    option.selected = m === preferred;
+    select.appendChild(option);
+  }
+  select.disabled = list.length < 2;
+}
+
+(async () => {
+  try {
+    const r = await fetch("/api/models");
+    if (r.ok) models = await r.json();
+  } catch { /* picker stays empty; the server uses its default model */ }
+  renderModels();
+})();
+$("provider").addEventListener("change", renderModels);
+
+/** POST JSON and read the SSE-framed response (EventSource can't send a body). */
+async function streamPost(url, body, onEvent) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`${url} -> HTTP ${response.status}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop();
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (line) onEvent(JSON.parse(line.slice(5).trim()));
+    }
+  }
+}
+
+function notice(text) {
+  const p = document.createElement("p");
+  p.className = "gate warn";
+  p.textContent = text;
+  $("notices").appendChild(p);
+}
+
+function setStatus(text, cls) {
+  $("build-status").innerHTML = cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text);
+}
+
+// --- create ------------------------------------------------------------------
+
+$("build").addEventListener("click", async () => {
+  const query = $("query").value.trim();
+  if (!query) return;
+
+  for (const id of ["strategy-section", "thinking-section", "trace-section",
+                    "steps-section", "plan-section", "results-section"]) hide(id);
+  for (const id of ["steps-body", "tiles", "plan-warnings", "notices"]) $(id).innerHTML = "";
+  for (const id of ["thinking", "trace", "strategy"]) $(id).textContent = "";
+  let toolCalls = 0;
+
+  runId = crypto.randomUUID();
+  const apps = $("apps").value.split(",").map((a) => a.trim()).filter(Boolean);
+  $("build").disabled = true;
+  $("stop").disabled = false;
+  setStatus("working…");
+
+  try {
+    await streamPost("/api/create-search", {
+      Query: query,
+      Id: runId,
+      Provider: provider(),
+      Model: $("model").value || null,
+      Apps: apps.length ? apps : null,
+      Effort: $("effort").value,
+    }, (ev) => {
+      switch (ev.kind) {
+        case "status":
+          setStatus(ev.message);
+          break;
+        case "strategy":
+          show("strategy-section");
+          $("strategy").textContent = ev.message;
+          break;
+        case "reasoning":
+          show("thinking-section");
+          $("thinking").textContent += ev.message + "\n";
+          $("thinking").scrollTop = $("thinking").scrollHeight;
+          break;
+        case "trace":
+          show("trace-section");
+          $("trace").textContent += ev.message + "\n\n";
+          if (ev.message.startsWith("Tool call:")) {
+            toolCalls += 1;
+            $("trace-summary").textContent = `Tool calls (${toolCalls})`;
+          }
+          break;
+        case "step":
+          addStep(ev.message);
+          break;
+        case "metrics":
+          renderTotals(ev.message);
+          break;
+        case "warning":
+          notice(ev.message);
+          break;
+        case "done":
+          renderPlan(ev.message);
+          setStatus(`done in ${ev.duration.toFixed(1)} s`, "ok");
+          break;
+        case "stop":
+          setStatus("stopped", "warn");
+          break;
+        case "agenterror":
+          setStatus(ev.message, "warn");
+          break;
+      }
+    });
+  } catch (err) {
+    setStatus(err.message, "warn");
+  } finally {
+    $("build").disabled = false;
+    $("stop").disabled = true;
+  }
+});
+
+$("stop").addEventListener("click", async () => {
+  if (!runId) return;
+  $("stop").disabled = true;
+  setStatus("stopping…");
+  try {
+    await fetch(`/api/create-search/stop?id=${encodeURIComponent(runId)}`, { method: "PUT" });
+  } catch (err) {
+    setStatus(err.message, "warn");
+  }
+});
+
+const fmtMs = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : ms + " ms");
+const fmtNum = (n) => (n ? n.toLocaleString() : "");
+
+function addStep(step) {
+  show("steps-section");
+  const row = document.createElement("tr");
+  row.innerHTML = `
+    <td class="num">${step.step}</td>
+    <td><span class="kind">${escapeHtml(step.kind)}</span></td>
+    <td class="name">${escapeHtml(step.label)}</td>
+    <td>${escapeHtml(step.detail || "")}</td>
+    <td class="num">${fmtMs(step.ms)}</td>
+    <td class="num">${fmtNum(step.input_tokens)}</td>
+    <td class="num">${fmtNum(step.cached_tokens)}</td>
+    <td class="num">${fmtNum(step.output_tokens)}</td>`;
+  $("steps-body").appendChild(row);
+}
+
+function renderTotals(m) {
+  show("steps-section");
+  const tiles = [
+    ["Total", fmtMs(m.total_ms)],
+    ["Model", fmtMs(m.model_ms)],
+    ["Tools", fmtMs(m.tool_ms)],
+    ["Calls", `${m.model_calls} / ${m.tool_calls}`],
+    ["Tokens in", fmtNum(m.input_tokens) || "0"],
+    ["Cached", fmtNum(m.cached_tokens) || "0"],
+    ["Tokens out", fmtNum(m.output_tokens) || "0"],
+  ];
+  $("tiles").innerHTML = tiles
+    .map(([k, v]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`)
+    .join("");
+}
+
+function renderPlan(plan) {
+  show("plan-section");
+  if (plan.strategy) {
+    show("strategy-section");
+    $("strategy").textContent = plan.strategy;
+  }
+  $("source").textContent = plan.source === "agent" ? "submitted by agent" : plan.source;
+
+  const warnings = [];
+  if (plan.validation_errors?.length) {
+    warnings.push("Payload does not match the tool schema, so Run is disabled:");
+    plan.validation_errors.forEach((e) => warnings.push("    " + e));
+  } else if (!plan.runnable) {
+    warnings.push("No runnable search was produced, so Run is disabled.");
+  }
+  if (plan.unresolved_conditions?.length) {
+    warnings.push("Not covered by the search: " + plan.unresolved_conditions.join(" · "));
+  }
+  if (plan.assumptions?.length) warnings.push("Assumptions: " + plan.assumptions.join(" · "));
+  if (plan.notes) warnings.push("Notes: " + plan.notes);
+  $("plan-warnings").innerHTML = warnings
+    .map((w) => `<p class="gate warn">${escapeHtml(w)}</p>`)
+    .join("");
+
+  $("tool").value = plan.tool || "(none)";
+  $("payload").value = plan.payload ? JSON.stringify(plan.payload, null, 2) : "";
+  $("instructions").value = plan.analysis_instructions || "";
+  $("run").disabled = !plan.runnable;
+}
+
+// --- run (the only full search) ----------------------------------------------
+
+$("run").addEventListener("click", async () => {
+  let payload;
+  try {
+    payload = JSON.parse($("payload").value);
+  } catch (err) {
+    $("run-status").innerHTML = `<span class="warn">Payload is not valid JSON: ${escapeHtml(err.message)}</span>`;
+    return;
+  }
+
+  $("run").disabled = true;
+  $("run-status").textContent = "running search…";
+  hide("results-section");
+
+  try {
+    const response = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Tool: $("tool").value, Payload: payload }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      const detail = data.detail;
+      const msg = detail?.validation_errors
+        ? "Payload rejected:\n" + detail.validation_errors.join("\n")
+        : typeof detail === "string" ? detail : `HTTP ${response.status}`;
+      $("run-status").innerHTML = `<span class="warn">${escapeHtml(msg)}</span>`;
+      return;
+    }
+
+    // MCP CallToolResult: text content is normally JSON; show it parsed when it is.
+    const text = (data.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    let pretty = text;
+    let total = null;
+    try {
+      const parsed = JSON.parse(text);
+      pretty = JSON.stringify(parsed, null, 2);
+      total = parsed.total ?? null;
+    } catch { /* not JSON; show as is */ }
+
+    show("results-section");
+    $("results-summary").textContent =
+      `Raw results via ${$("tool").value}` + (total !== null ? ` (${total.toLocaleString()} total)` : "");
+    $("results").textContent = pretty;
+    $("run-status").innerHTML = data.isError
+      ? `<span class="warn">the search returned an error</span>`
+      : `<span class="ok">done</span>`;
+  } catch (err) {
+    $("run-status").innerHTML = `<span class="warn">${escapeHtml(err.message)}</span>`;
+  } finally {
+    $("run").disabled = false;
+  }
+});
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
+$("query").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) $("build").click();
+});
+</script>
+</body>
+</html>

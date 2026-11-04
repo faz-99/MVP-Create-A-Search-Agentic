@@ -1,5 +1,9 @@
 # AI Create Search
 
+> **New: `create_search/`** is the agentic Create Search, rebuilt on agentv4's
+> patterns. It sits beside the POC below (`shared/`, `agent_*`, `ui/`), which stays
+> until the new agent matches it. See [create_search/README.md](create_search/README.md).
+
 An agent that turns a plain-language request into a **runnable search** against the
 DDC4 MCP server, plus the instructions for analysing whatever that search returns.
 It does not run the search. A human does, by clicking Run.

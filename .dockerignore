@@ -23,6 +23,7 @@ __pycache__/
 # Captured runs — runtime output, persisted via the /app/out volume mount rather
 # than baked into the image. Never ship someone's local run history.
 out/
+storage/
 
 # Secrets — supplied at runtime via env_file in docker-compose.yml
 .env
