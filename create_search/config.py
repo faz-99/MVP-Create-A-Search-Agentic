@@ -12,6 +12,14 @@ from dotenv import find_dotenv, load_dotenv
 # the project .env whenever the entry point lives elsewhere.
 load_dotenv(find_dotenv(usecwd=True))
 
+# Behind a TLS-inspecting proxy (corporate laptops) the proxy's root is in the OS store
+# but not in certifi, so Bedrock calls fail with CERTIFICATE_VERIFY_FAILED. Opt-in, and
+# done here because every module imports config before creating an HTTP client.
+if os.getenv("USE_SYSTEM_CERTS", "").strip().lower() in {"1", "true", "yes", "on"}:
+    import truststore
+
+    truststore.inject_into_ssl()
+
 
 def env_int(name: str, default: int) -> int:
     value = os.getenv(name)
@@ -60,14 +68,17 @@ MAX_SUBMIT_REMINDERS = env_int("MAX_SUBMIT_REMINDERS", 2)
 
 # --- Models ------------------------------------------------------------------
 DEFAULT_OPENAI_MODEL = os.getenv("DEFAULT_OPENAI_MODEL", "gpt-5.4-2026-03-05")
-DEFAULT_CLAUDE_MODEL = os.getenv(
-    "DEFAULT_CLAUDE_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0"
-)
-# "bedrock" (AWS credentials, as agentv4) or "anthropic" (ANTHROPIC_API_KEY).
+# Bedrock IDs carry an "anthropic." prefix (claude-sonnet-4-20250514, the old default,
+# has reached end of life there). Use the plain ID with CLAUDE_BACKEND=anthropic.
+DEFAULT_CLAUDE_MODEL = os.getenv("DEFAULT_CLAUDE_MODEL", "anthropic.claude-opus-5-5")
+# "bedrock"        Bedrock Messages API (Mantle) with AWS credentials, as agentv4;
+# "bedrock-invoke" the legacy InvokeModel path, for "us.anthropic.*-v1:0" model IDs;
+# "anthropic"      the Claude API directly (ANTHROPIC_API_KEY).
 CLAUDE_BACKEND = os.getenv("CLAUDE_BACKEND", "bedrock")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-# "enabled" (budgeted), "adaptive" (newer models only) or "off".
-CLAUDE_THINKING = os.getenv("CLAUDE_THINKING", "enabled")
+# "adaptive" (current models; effort comes from the request), "enabled" (budgeted,
+# pre-4.6 models only; current models reject it) or "off" (older models only).
+CLAUDE_THINKING = os.getenv("CLAUDE_THINKING", "adaptive")
 CLAUDE_THINKING_BUDGET = env_int("CLAUDE_THINKING_BUDGET", 4096)
 CLAUDE_MAX_TOKENS = env_int("CLAUDE_MAX_TOKENS", 16000)
 

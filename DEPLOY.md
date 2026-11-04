@@ -414,6 +414,18 @@ return 503. The client already retries 5 times; if every attempt fails, the pool
 unhealthy, so wait and retry. On a dev machine, also check for a full system drive.
 We saw this exact message when the drive holding TEMP had 0 bytes free.
 
+**Claude fails with `not authorized to perform: bedrock-mantle:CreateInference`**
+The Claude loop uses Bedrock's Messages API (Mantle), a different IAM action from the
+`bedrock:InvokeModel` the POC used. Grant the instance role `bedrock-mantle:CreateInference`
+in the region, or switch back to the legacy path by setting `CLAUDE_BACKEND=bedrock-invoke`
+and a `us.anthropic.*` inference-profile ID in `DEFAULT_CLAUDE_MODEL`. The old default
+`us.anthropic.claude-sonnet-4-20250514-v1:0` has reached end of life and returns 404.
+
+**Claude fails with `CERTIFICATE_VERIFY_FAILED` (local laptops)**
+A TLS-inspecting proxy re-signs Bedrock traffic with a corporate root that Python's
+certifi bundle lacks. Set `USE_SYSTEM_CERTS=1` in `.env` to verify against the Windows
+store instead. Not needed on the server.
+
 **OpenAI provider fails with "No OpenAI credentials"**
 `MODELS_SECRETS` is not reaching the container, or the secret could not be read.
 Check `docker compose exec create-search printenv MODELS_SECRETS`, then the logs for

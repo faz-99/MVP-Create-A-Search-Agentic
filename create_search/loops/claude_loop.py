@@ -23,7 +23,7 @@ from create_search.core.recorder import RunRecorder
 from create_search.core.stop import is_stop_requested
 from create_search.models import get_claude_client
 
-EFFORT_LEVELS = {"none": "low", "low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "max"}
+EFFORT_LEVELS = {"none": "low", "low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "max": "max"}
 
 
 def _tools(executor: ToolExecutor) -> list[dict[str, Any]]:
@@ -38,8 +38,9 @@ def _tools(executor: ToolExecutor) -> list[dict[str, Any]]:
 
 def _thinking_kwargs(effort: str) -> dict[str, Any]:
     if config.CLAUDE_THINKING == "adaptive":
+        # "summarized" so the UI has reasoning to show; the default returns it empty.
         return {
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "adaptive", "display": "summarized"},
             "output_config": {"effort": EFFORT_LEVELS.get(effort.lower(), "medium")},
         }
     if config.CLAUDE_THINKING == "enabled":
@@ -116,6 +117,13 @@ async def run_loop(
             if block["type"] == "thinking" and block["thinking"]:
                 yield event("reasoning", block["thinking"])
         tool_uses = [b for b in content if b["type"] == "tool_use"]
+
+        if response.stop_reason == "refusal":
+            # A safety decline; reminding would only repeat it. The run falls back.
+            details = getattr(response, "stop_details", None)
+            category = getattr(details, "category", None) or "unspecified"
+            yield event("warning", f"The model declined this request (category: {category}).")
+            return
 
         if response.stop_reason == "max_tokens":
             # A cut-off tool call may carry partial input; drop it and ask again.

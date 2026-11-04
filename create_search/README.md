@@ -77,8 +77,9 @@ tests/                 live MCP checks; loops tested with scripted models
 | `MODELS_SECRETS` | | Secrets Manager name with `open_ai_*` model keys (agentv4) |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | | local fallback when `MODELS_SECRETS` is unset |
 | `DEFAULT_OPENAI_MODEL` / `DEFAULT_OPENAI_MODEL_KEY` | gpt-5.4-2026-03-05 | |
-| `CLAUDE_BACKEND` | bedrock | or `anthropic` (uses `ANTHROPIC_API_KEY`) |
-| `DEFAULT_CLAUDE_MODEL` | us.anthropic.claude-sonnet-4-20250514-v1:0 | |
-| `CLAUDE_THINKING` | enabled | `enabled` (budgeted), `adaptive` (newer models), `off` |
+| `CLAUDE_BACKEND` | bedrock | Bedrock Messages API; `bedrock-invoke` (legacy InvokeModel) or `anthropic` (`ANTHROPIC_API_KEY`) |
+| `DEFAULT_CLAUDE_MODEL` | anthropic.claude-opus-5-5 | Bedrock IDs keep the `anthropic.` prefix |
+| `CLAUDE_THINKING` | adaptive | `adaptive` (current models), `enabled` (budgeted, pre-4.6 only), `off` |
+| `USE_SYSTEM_CERTS` | off | `1` to trust the OS cert store (laptops behind TLS inspection) |
 | `MAX_TURNS`, `WARN_BEFORE`, `MAX_TOOL_CALLS` | 20, 3, 40 | |
 | `MAX_SEARCH_RUNS`, `SEARCH_PREVIEW_ROWS` | 5, 5 | |

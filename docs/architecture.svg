@@ -68,7 +68,7 @@
 
   <rect class="box" x="230" y="352" width="500" height="50" rx="8"/>
   <text class="t" x="246" y="374">Claude loop</text>
-  <text class="s" x="246" y="392">Anthropic SDK on Bedrock · thinking passed back · prompt caching</text>
+  <text class="s" x="246" y="392">Anthropic SDK on Bedrock · adaptive thinking · prompt caching</text>
 
   <!-- Executor -->
   <rect class="core" x="230" y="432" width="500" height="138" rx="8"/>

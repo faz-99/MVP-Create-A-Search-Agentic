@@ -20,6 +20,9 @@ httpx[http2]>=0.27.0
 #   anthropic      — the Claude loop (AsyncAnthropicBedrock, as agentv4)
 openai-agents==0.19.4
 anthropic==0.120.2
+#   truststore     — USE_SYSTEM_CERTS=1: verify TLS against the OS store, for laptops
+#                    behind a TLS-inspecting proxy. Off by default (the server needs none).
+truststore>=0.10.0
 
 # Validates a created search against the live tool schema before it can be run
 jsonschema>=4.23.0

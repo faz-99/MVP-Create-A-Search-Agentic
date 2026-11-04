@@ -123,10 +123,10 @@ executor makes sure it is.
 
 | | OpenAI (default) | Claude |
 |---|---|---|
-| Runtime | OpenAI Agents SDK, Responses API | Own loop on the Anthropic SDK (`AsyncAnthropicBedrock`) |
+| Runtime | OpenAI Agents SDK, Responses API | Own loop on the Anthropic SDK (`AsyncAnthropicBedrockMantle`, the Bedrock Messages API) |
 | Credentials | AWS Secrets Manager, `MODELS_SECRETS` (as agentv4); `OPENAI_API_KEY` locally | AWS credential chain (instance role) |
-| Default model | `DEFAULT_OPENAI_MODEL_KEY` / `gpt-5.4-2026-03-05` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
-| Reasoning | Reasoning summaries streamed as `reasoning` events | Extended thinking; thinking blocks passed back between turns |
+| Default model | `DEFAULT_OPENAI_MODEL_KEY` / `gpt-5.4-2026-03-05` | `anthropic.claude-opus-5-5` |
+| Reasoning | Reasoning summaries streamed as `reasoning` events | Adaptive thinking, effort from the request, summaries streamed; thinking blocks passed back between turns; a `refusal` stop ends the run with a warning |
 | Caching | Provider-side | `cache_control` on the system prompt and tool list; cached tokens counted |
 
 Both loops share the executor, the contract, the limits and the events, so they behave
@@ -192,7 +192,8 @@ All settings are environment variables (see `.env.example`):
 
 - **MCP:** `LEXIS_SSO_COOKIE` (dev token), `MCP_SERVER`, `MCP_TIMEOUT`, `MCP_RETRY_ATTEMPTS`
 - **OpenAI:** `MODELS_SECRETS`, `DEFAULT_OPENAI_MODEL_KEY`; locally `OPENAI_API_KEY`
-- **Claude:** `CLAUDE_BACKEND` (`bedrock`), `DEFAULT_CLAUDE_MODEL`, `CLAUDE_THINKING`, `AWS_REGION`
+- **Claude:** `CLAUDE_BACKEND` (`bedrock`, `bedrock-invoke` or `anthropic`), `DEFAULT_CLAUDE_MODEL`, `CLAUDE_THINKING` (`adaptive`), `AWS_REGION`
+- **Local only:** `USE_SYSTEM_CERTS=1` trusts the OS certificate store, for laptops behind TLS inspection
 - **Limits:** `MAX_TURNS`, `WARN_BEFORE`, `MAX_TOOL_CALLS`, `MAX_SEARCH_RUNS`, `SEARCH_PREVIEW_ROWS`, `MAX_LOOKUP_CHARS`, `MAX_SUBMIT_REMINDERS`
 - **App:** `ENV`, `APP_MODULE`, `CAPTURE_DIR` (`out`), `STORAGE_PATH` (`storage`)
 

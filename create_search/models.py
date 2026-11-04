@@ -5,8 +5,10 @@ holding Model / ApiKey / RequestUri, and the Agents SDK talks to them through th
 Responses API. Without MODELS_SECRETS (local dev) OPENAI_API_KEY / OPENAI_BASE_URL are
 used instead. Secrets stay in memory; nothing is written to disk.
 
-Claude goes through the Anthropic SDK: on Bedrock with the normal AWS credential chain
-(as agentv4), or directly with ANTHROPIC_API_KEY when CLAUDE_BACKEND=anthropic.
+Claude goes through the Anthropic SDK: on Bedrock's Messages API (Mantle) with the normal
+AWS credential chain (as agentv4), on the legacy InvokeModel path with
+CLAUDE_BACKEND=bedrock-invoke, or directly with ANTHROPIC_API_KEY when
+CLAUDE_BACKEND=anthropic.
 """
 
 import json
@@ -21,7 +23,8 @@ from create_search import config
 
 _secrets: dict[str, dict[str, Any]] | None = None
 _openai_clients: dict[tuple[str, str | None], AsyncOpenAI] = {}
-_claude_client: anthropic.AsyncAnthropic | anthropic.AsyncAnthropicBedrock | None = None
+ClaudeClient = anthropic.AsyncAnthropic | anthropic.AsyncAnthropicBedrockMantle | anthropic.AsyncAnthropicBedrock
+_claude_client: ClaudeClient | None = None
 
 
 def _load_secrets() -> dict[str, dict[str, Any]]:
@@ -81,13 +84,15 @@ def get_openai_model(api_key: str, base_url: str | None, model_name: str) -> Ope
     return OpenAIResponsesModel(model=model_name, openai_client=client)
 
 
-def get_claude_client() -> anthropic.AsyncAnthropic | anthropic.AsyncAnthropicBedrock:
+def get_claude_client() -> ClaudeClient:
     global _claude_client
     if _claude_client is None:
         if config.CLAUDE_BACKEND == "anthropic":
             _claude_client = anthropic.AsyncAnthropic()
-        else:
+        elif config.CLAUDE_BACKEND == "bedrock-invoke":
             _claude_client = anthropic.AsyncAnthropicBedrock(aws_region=config.AWS_REGION)
+        else:
+            _claude_client = anthropic.AsyncAnthropicBedrockMantle(aws_region=config.AWS_REGION)
     return _claude_client
 
 
