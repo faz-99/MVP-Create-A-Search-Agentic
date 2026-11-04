@@ -11,6 +11,8 @@ python -m create_search --provider claude --apps SF,AOE "..."           # Claude
 python -m uvicorn api.server:app --port 8080                            # HTTP API
 ```
 
+Solution overview and diagram: [SOLUTION.md](../SOLUTION.md). Deployment: [DEPLOY.md](../DEPLOY.md).
+
 ## Layout
 
 ```
@@ -33,6 +35,7 @@ create_search/
     openai_loop.py     OpenAI Agents SDK, Responses API (long-term runtime)
     claude_loop.py     own loop on the Anthropic SDK (Bedrock), removable later
 api/server.py          FastAPI: /api/create-search (SSE), /stop, /run, /models, /tools
+api/static/index.html  test page served at /
 tests/                 live MCP checks; loops tested with scripted models
 ```
 
