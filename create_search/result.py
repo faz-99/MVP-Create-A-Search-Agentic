@@ -1,4 +1,4 @@
-"""The output contract and the two agent-only tools: report_strategy (early UI strategy) and submit_search (the deliverable)."""
+"""The agent's result (CreatedSearch) and the two tools that produce it: report_strategy and submit_search."""
 
 from dataclasses import asdict, dataclass, field
 from typing import Any

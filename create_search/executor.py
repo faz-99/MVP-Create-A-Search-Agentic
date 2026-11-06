@@ -11,7 +11,7 @@ from typing import Any
 from agents.mcp import MCPServer
 
 from create_search import config
-from create_search.contract import STRATEGY_TOOL, SUBMIT_TOOL, CreatedSearch, strategy_tool_def, submit_tool_def
+from create_search.result import STRATEGY_TOOL, SUBMIT_TOOL, CreatedSearch, strategy_tool_def, submit_tool_def
 from create_search.toolset import Toolset, is_search_tool
 from create_search.utils import Emit, RunRecorder, event, summarize_search, truncate, validate_payload
 

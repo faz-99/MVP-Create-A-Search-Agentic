@@ -23,7 +23,7 @@ create_search/
   clients.py           MCP connection (pooled HTTP/2, lna header) and model clients (Secrets Manager keys, Claude)
   toolset.py           bundles by tool-name prefix, search/content/lookup classes, drift
   executor.py          runs every tool call: budget, clamping, trimming, submit
-  contract.py          CreatedSearch, submit_search and report_strategy definitions
+  result.py            the agent's result (CreatedSearch) and the submit_search / report_strategy tools
   utils.py             events, stop files, system prompt, limit messages, validation, trimming, run recorder
   prompts/system.txt   the system prompt text
   loops/

@@ -10,7 +10,7 @@ from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
 from create_search import config
-from create_search.contract import SUBMIT_TOOL
+from create_search.result import SUBMIT_TOOL
 
 # --- Events: agentv4 shape {"kind", "message", ...} -------------------------------------------------------------
 # Kinds: status, strategy, trace, reasoning, warning, step, usage (JSON string), metrics, done, agenterror, stop, ping.

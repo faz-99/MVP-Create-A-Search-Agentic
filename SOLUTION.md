@@ -88,7 +88,7 @@ sequenceDiagram
 | `create_search/run.py` | Entry point `create_search(query, provider, apps, token, ...)`; picks the loop |
 | `create_search/toolset.py` | Bundles, the search / content / lookup classes, `drift()` |
 | `create_search/executor.py` | Runs every tool call: validation, budget, clamping, trimming, dedupe, submit |
-| `create_search/contract.py` | `CreatedSearch`, and the `submit_search` / `report_strategy` definitions |
+| `create_search/result.py` | The agent's result (`CreatedSearch`) and the `submit_search` / `report_strategy` tools |
 | `create_search/utils.py` | Events, stop files, system prompt builder, limit messages, payload validation, result trimming, run recorder (`out/`) |
 | `create_search/prompts/system.txt` | System prompt text (date and apps are prepended at run time) |
 | `create_search/loops/openai_loop.py` | OpenAI Agents SDK, Responses API (the long-term runtime) |

@@ -30,7 +30,7 @@ create_search/
   clients.py                MCP connection and model clients (OpenAI, Claude)
   toolset.py                tool bundles per app, search/lookup/content classes, drift check
   executor.py               runs every tool call: validation, budgets, preview, submit
-  contract.py               output shape (CreatedSearch) and the submit_search / report_strategy tools
+  result.py                 the agent's result (CreatedSearch) and the submit_search / report_strategy tools
   utils.py                  events, stop files, system prompt, validation, trimming, run recorder
   prompts/system.txt        system prompt
   loops/openai_loop.py      OpenAI Agents SDK loop (Responses API)
