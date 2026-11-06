@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["api.server:app", "--host", "127.0.0.1", "--port", "8080"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "env": {
+        "TEMP": "D:/NBS Projects/_claude_tmp/temp",
+        "TMP": "D:/NBS Projects/_claude_tmp/temp",
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "justMyCode": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "CLI (debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "create_search",
+      "args": ["--provider", "claude", "${input:query}"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "env": {
+        "TEMP": "D:/NBS Projects/_claude_tmp/temp",
+        "TMP": "D:/NBS Projects/_claude_tmp/temp",
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "justMyCode": false,
+      "console": "integratedTerminal"
+    }
+  ],
+  "inputs": [
+    {"id": "query", "type": "promptString", "description": "Search request", "default": "10-K filings of Microsoft from 2025"}
+  ]
+}
