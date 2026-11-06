@@ -17,25 +17,21 @@ Solution overview and diagram: [SOLUTION.md](../SOLUTION.md). Deployment: [DEPLO
 
 ```
 create_search/
+  agent.py             CreateSearchAgent(ProtegeBaseAgent): Intive template base; stream_research runs our loops
   run.py               entry point: create_search(query, provider, apps, token, ...)
   config.py            env settings and every limit
-  models.py            OpenAI keys from Secrets Manager (agentv4) or env; Claude client
-  mcp_connection.py    MCPServerStreamableHttp + pooled HTTP/2 transport (agentv4)
-  core/                shared by both loops
-    toolset.py         bundles by tool-name prefix, search/content/lookup classes, drift
-    executor.py        runs every tool call: budget, clamping, trimming, submit
-    contract.py        CreatedSearch, submit_search and report_strategy definitions
-    validate.py        jsonschema validation with fix-oriented messages
-    trimming.py        search-result preview
-    limits.py          wrap-up notice, submit reminder
-    prompt.py          system prompt ("Today is ..." + apps + prompts/system.txt)
-    recorder.py        per-step timing/tokens, capture to out/
-    events.py, stop.py
+  clients.py           MCP connection (pooled HTTP/2, lna header) and model clients (Secrets Manager keys, Claude)
+  toolset.py           bundles by tool-name prefix, search/content/lookup classes, drift
+  executor.py          runs every tool call: budget, clamping, trimming, submit
+  contract.py          CreatedSearch, submit_search and report_strategy definitions
+  utils.py             events, stop files, system prompt, limit messages, validation, trimming, run recorder
+  prompts/system.txt   the system prompt text
   loops/
     openai_loop.py     OpenAI Agents SDK, Responses API (long-term runtime)
     claude_loop.py     own loop on the Anthropic SDK (Bedrock), removable later
 api/server.py          FastAPI: /api/create-search (SSE), /stop, /run, /models, /tools
 api/static/index.html  test page served at /
+protege_agent_core/    Intive's agent template, copied unchanged (docs in docs/agent-template/)
 tests/                 live MCP checks; loops tested with scripted models
 ```
 

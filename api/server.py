@@ -1,23 +1,12 @@
-"""HTTP API for the Create Search agent.
+"""HTTP API for the Create Search agent (python -m uvicorn api.server:app --port 8080).
 
-    POST /api/create-search          stream events (SSE) for one request
-    PUT  /api/create-search/stop     stop a running request by id
-    POST /api/run                    run a created search payload (no model)
-    GET  /api/models                 models each provider can use
-    GET  /api/tools?apps=SF,AOE      tools a request with those apps would see
-    GET  /api/health
-    GET  /                           the test page (api/static/index.html)
-
-Auth follows agentv4: the lna token comes from the `lna` cookie, then the `lna` header,
-then (dev only) LEXIS_SSO_COOKIE. API docs are disabled in prod.
-
-    python -m uvicorn api.server:app --port 8080
+POST /api/create-search (SSE) · PUT /api/create-search/stop · POST /api/run · GET /api/models · GET /api/tools · GET /api/health · GET /
+Auth as agentv4: lna cookie, then lna header, then (non-prod) LEXIS_SSO_COOKIE.
 """
 
 import asyncio
 import hashlib
 import json
-import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,16 +18,14 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from create_search import config
-from create_search.core.stop import request_stop, stop_key
-from create_search.core.toolset import is_search_tool, normalize_apps, select_tools
-from create_search.core.validate import validate_payload
-from create_search.mcp_connection import close_transport, list_tool_dicts, open_mcp
-from create_search.models import available_models, close_clients
 from create_search.agent import AgentRequest, create_agent
+from create_search.clients import available_models, close_clients, list_tool_dicts, open_mcp
+from create_search.toolset import is_search_tool, normalize_apps, select_tools
+from create_search.utils import request_stop, stop_key, validate_payload
 
-logger = logging.getLogger(__name__)
 PING_SECONDS = 5
 INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+PROD = config.ENV.lower() == "prod"
 
 
 @asynccontextmanager
@@ -47,20 +34,10 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await close_clients()
-        await close_transport()
 
 
-if config.ENV.lower() == "prod":
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-else:
-    app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=os.getenv("ORIGINS", "*").split("|"),
-    allow_credentials=True,
-    allow_headers=["*"],
-    allow_methods=["*"],
-)
+app = FastAPI(lifespan=lifespan, **({"docs_url": None, "redoc_url": None, "openapi_url": None} if PROD else {}))
+app.add_middleware(CORSMiddleware, allow_origins=os.getenv("ORIGINS", "*").split("|"), allow_credentials=True, allow_headers=["*"], allow_methods=["*"])
 
 
 class CreateSearchRequest(BaseModel):
@@ -79,15 +56,20 @@ class RunRequest(BaseModel):
 
 def get_lna_value(req: Request) -> str:
     token = req.cookies.get(config.AUTH_HEADER, "") or req.headers.get(config.AUTH_HEADER, "")
-    if not token.strip() and config.ENV.lower() != "prod":
+    if not token.strip() and not PROD:
         token = config.dev_token()
     if not token.strip():
         raise HTTPException(status.HTTP_403_FORBIDDEN)
     return token
 
 
+def _user_key(token: str) -> str:
+    """Per-user folder for stop files, without storing the token."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
 async def _sse(events: AsyncIterator[dict[str, Any]]) -> AsyncIterator[str]:
-    """Events as SSE frames, with a ping when the agent is quiet (long model turns)."""
+    """Events as SSE frames, with a ping while the agent is quiet."""
     queue: asyncio.Queue = asyncio.Queue()
     done = object()
 
@@ -121,14 +103,11 @@ async def _sse(events: AsyncIterator[dict[str, Any]]) -> AsyncIterator[str]:
 async def create_search_endpoint(body: CreateSearchRequest, req: Request):
     token = get_lna_value(req)
     run_id = body.Id or ""
-    key = stop_key(_user_key(token), run_id) if run_id else None
     request = AgentRequest(Prompt=body.Query, ConversationId=run_id, Effort=body.Effort.lower())
-    events = create_agent(token, body.Model).stream_research(request, provider=body.Provider, apps=body.Apps, stop_key=key)
-    return StreamingResponse(
-        _sse(events),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache, no-transform", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
-    )
+    events = create_agent(token, body.Model).stream_research(request, provider=body.Provider, apps=body.Apps,
+                                                             stop_key=stop_key(_user_key(token), run_id) if run_id else None)
+    headers = {"Cache-Control": "no-cache, no-transform", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
+    return StreamingResponse(_sse(events), media_type="text/event-stream", headers=headers)
 
 
 @app.put("/api/create-search/stop", status_code=status.HTTP_204_NO_CONTENT)
@@ -138,14 +117,12 @@ async def stop_endpoint(id: str, req: Request):
 
 @app.post("/api/run")
 async def run_endpoint(body: RunRequest, req: Request):
-    """Run a created (possibly user-edited) payload. Validated again before it goes out."""
+    """Run a created (possibly edited) payload; validated again first."""
     if not is_search_tool(body.Tool):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"'{body.Tool}' is not a search tool.")
     async with open_mcp(get_lna_value(req)) as server:
-        tools = {t["name"]: t for t in await list_tool_dicts(server)}
-        schema = tools.get(body.Tool, {}).get("inputSchema")
-        errors = validate_payload(body.Tool, body.Payload, schema)
-        if errors:
+        schema = {t["name"]: t for t in await list_tool_dicts(server)}.get(body.Tool, {}).get("inputSchema")
+        if errors := validate_payload(body.Tool, body.Payload, schema):
             raise HTTPException(422, {"validation_errors": errors})
         result = await server.call_tool(body.Tool, body.Payload)
     return result.model_dump(mode="json")
@@ -175,8 +152,3 @@ async def health():
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse(INDEX_HTML)
-
-
-def _user_key(token: str) -> str:
-    """Stable per-user folder name for stop files without storing the token."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]

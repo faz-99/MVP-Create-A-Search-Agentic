@@ -9,14 +9,11 @@ import uuid
 from typing import AsyncIterator, Iterable
 
 from create_search import config
-from create_search.core.events import Event, event
-from create_search.core.executor import ToolExecutor
-from create_search.core.prompt import build_instructions
-from create_search.core.recorder import RunRecorder
-from create_search.core.stop import clear_stop
-from create_search.core.toolset import drift, normalize_apps, select_tools
+from create_search.clients import list_tool_dicts, open_mcp
+from create_search.executor import ToolExecutor
 from create_search.loops import claude_loop, openai_loop
-from create_search.mcp_connection import list_tool_dicts, open_mcp
+from create_search.toolset import drift, normalize_apps, select_tools
+from create_search.utils import Event, RunRecorder, build_instructions, clear_stop, event
 
 logger = logging.getLogger(__name__)
 

@@ -47,7 +47,7 @@ COPY --chown=searchagent:searchagent . /app/
 # Captured runs land here. Mounted as a volume in docker-compose.yml so run
 # history survives rebuilds; both apps write to a relative "out/" path, which
 # resolves to /app/out given WORKDIR. /app/storage holds stop requests for
-# running searches (create_search/core/stop.py).
+# running searches (create_search/utils.py).
 RUN mkdir -p /app/out /app/storage && chown -R searchagent:searchagent /app
 
 # Normalise the entrypoint script:

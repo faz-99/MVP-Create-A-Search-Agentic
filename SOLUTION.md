@@ -83,18 +83,17 @@ sequenceDiagram
 |---|---|
 | `api/server.py` | FastAPI app: SSE endpoint, stop, run, models, tools, health; serves the test page |
 | `api/static/index.html` | Test page: request, live strategy/reasoning/tool calls/steps, editable payload, Run |
+| `create_search/agent.py` | `CreateSearchAgent`, subclass of Intive's `ProtegeBaseAgent`; `stream_research` runs our loops |
+| `protege_agent_core/` | Intive's agent template, copied unchanged; only the base class is used for now |
 | `create_search/run.py` | Entry point `create_search(query, provider, apps, token, ...)`; picks the loop |
-| `create_search/core/toolset.py` | Bundles, the search / content / lookup classes, `drift()` |
-| `create_search/core/executor.py` | Runs every tool call: validation, budget, clamping, trimming, dedupe, submit |
-| `create_search/core/contract.py` | `CreatedSearch`, and the `submit_search` / `report_strategy` definitions |
-| `create_search/core/validate.py` | jsonschema validation with fix-oriented messages ("unknown field ... valid fields: ...") |
-| `create_search/core/limits.py` | Wrap-up notice before the turn limit; submit reminder |
-| `create_search/core/prompt.py` + `create_search/prompts/system.txt` | System prompt (date, apps, rules) |
-| `create_search/core/recorder.py` | Per-step timings and tokens; writes each run to `out/` |
+| `create_search/toolset.py` | Bundles, the search / content / lookup classes, `drift()` |
+| `create_search/executor.py` | Runs every tool call: validation, budget, clamping, trimming, dedupe, submit |
+| `create_search/contract.py` | `CreatedSearch`, and the `submit_search` / `report_strategy` definitions |
+| `create_search/utils.py` | Events, stop files, system prompt builder, limit messages, payload validation, result trimming, run recorder (`out/`) |
+| `create_search/prompts/system.txt` | System prompt text (date and apps are prepended at run time) |
 | `create_search/loops/openai_loop.py` | OpenAI Agents SDK, Responses API (the long-term runtime) |
 | `create_search/loops/claude_loop.py` | Own loop on the Anthropic SDK via Bedrock (can be removed later) |
-| `create_search/mcp_connection.py` | `MCPServerStreamableHttp` on a pooled HTTP/2 transport, `lna` auth header |
-| `create_search/models.py` | OpenAI keys from Secrets Manager (`MODELS_SECRETS`); Claude client |
+| `create_search/clients.py` | MCP connection (pooled HTTP/2, `lna` header); OpenAI keys from Secrets Manager; Claude client |
 
 The old POC (`shared/`, `agent_*`, `ui/`) still sits beside it, unchanged, and can be
 served instead with `APP_MODULE=ui.server:app`.
@@ -220,4 +219,4 @@ Run, and a rejected edited payload.
 - **First real model run** happens on the deploy host (needs `MODELS_SECRETS` and Bedrock access).
 - **No analysis endpoint yet.** The page has no Analyze button; analysis instructions are returned for the existing analysis API to use.
 - **The POC is still in the repo.** Remove `shared/`, `agent_*` and `ui/` once the new agent matches it.
-- **Watch the drift warnings.** The server has renamed tools before; `SEARCH_TOOLS` in `core/toolset.py` is the list to update.
+- **Watch the drift warnings.** The server has renamed tools before; `SEARCH_TOOLS` in `create_search/toolset.py` is the list to update.
