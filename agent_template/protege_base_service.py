@@ -7,15 +7,15 @@ from abc import abstractmethod, ABC
 from dotenv import load_dotenv
 from pathlib import Path
 
-from protege_agent_core.utils import ( get_model_config, utc_now, create_stop_request, generate_stop_key, enqueue_dismiss, generate_dismiss_key, list_pending_dismiss, remove_dismiss, env_flag, http_get, http_post, http_put, get_user_preferences, upload_conversation_to_vault, read_system_prompt)
-from protege_agent_core.s3_service import S3Sync
-from protege_agent_core.tracking_service import publish_message 
-from protege_agent_core.api.request import ChatRequest, SearchRequest, RegenerateRequest, ForkRequest, ShareRequest, PDERequest
-from protege_agent_core.jsonfilesession import JsonFileSession
+from agent_template.utils import ( get_model_config, utc_now, create_stop_request, generate_stop_key, enqueue_dismiss, generate_dismiss_key, list_pending_dismiss, remove_dismiss, env_flag, http_get, http_post, http_put, get_user_preferences, upload_conversation_to_vault, read_system_prompt)
+from agent_template.s3_service import S3Sync
+from agent_template.tracking_service import publish_message 
+from agent_template.api.request import ChatRequest, SearchRequest, RegenerateRequest, ForkRequest, ShareRequest, PDERequest
+from agent_template.jsonfilesession import JsonFileSession
 from typing import List, Any
 
-from protege_agent_core.base_agent import ProtegeBaseAgent
-from protege_agent_core.models import AgentConfig, McpConfig, AgentRequest, ModelConfig, DoneMessage
+from agent_template.base_agent import ProtegeBaseAgent
+from agent_template.models import AgentConfig, McpConfig, AgentRequest, ModelConfig, DoneMessage
 import asyncio
 import datetime
 import logging

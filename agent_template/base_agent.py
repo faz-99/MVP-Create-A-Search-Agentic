@@ -1,7 +1,7 @@
 import sys
 
 if sys.platform != "win32":
-	from protege_agent_core.chat_tools import agent_as_tool
+	from agent_template.chat_tools import agent_as_tool
 
 from abc import abstractmethod, ABC
 from agents import ( Agent, Runner, WebSearchTool, RunConfig, SessionSettings, set_tracing_disabled)
@@ -11,12 +11,12 @@ from agents.extensions import ToolOutputTrimmer
 from contextlib import nullcontext
 from typing import Any
 from pydantic import BaseModel
-from protege_agent_core.models import ModelConfig, AgentRequest, McpConfig, AgentConfig
-from protege_agent_core.api.request import AttachToConversationRequest
-from protege_agent_core.shared_transport import pooled_client_factory
-from protege_agent_core.utils import get_openai_model
-from protege_agent_core.jsonfilesession import JsonFileSession
-from protege_agent_core.utils import utc_now, generate_dismiss_key, generate_stop_key, MAX_TURNS, ENV, is_stop_requested, delete_stop_request, syncSecrets
+from agent_template.models import ModelConfig, AgentRequest, McpConfig, AgentConfig
+from agent_template.api.request import AttachToConversationRequest
+from agent_template.shared_transport import pooled_client_factory
+from agent_template.utils import get_openai_model
+from agent_template.jsonfilesession import JsonFileSession
+from agent_template.utils import utc_now, generate_dismiss_key, generate_stop_key, MAX_TURNS, ENV, is_stop_requested, delete_stop_request, syncSecrets
 
 import json
 import asyncio

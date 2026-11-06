@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Any
-from protege_agent_core.api.request import AttachToConversationRequest
+from agent_template.api.request import AttachToConversationRequest
 
 class ModelConfig(BaseModel):
     ApiKey: str = ""

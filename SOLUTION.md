@@ -84,7 +84,7 @@ sequenceDiagram
 | `api/server.py` | FastAPI app: SSE endpoint, stop, run, models, tools, health; serves the test page |
 | `api/static/index.html` | Test page: request, live strategy/reasoning/tool calls/steps, editable payload, Run |
 | `create_search/agent.py` | `CreateSearchAgent`, subclass of Intive's `ProtegeBaseAgent`; `stream_research` runs our loops |
-| `protege_agent_core/` | Intive's agent template, copied unchanged; only the base class is used for now |
+| `agent_template/` | Intive's agent template, copied unchanged; only the base class is used for now |
 | `create_search/run.py` | Entry point `create_search(query, provider, apps, token, ...)`; picks the loop |
 | `create_search/toolset.py` | Bundles, the search / content / lookup classes, `drift()` |
 | `create_search/executor.py` | Runs every tool call: validation, budget, clamping, trimming, dedupe, submit |

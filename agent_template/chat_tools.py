@@ -2,18 +2,18 @@ from agents import (
 	function_tool, ItemHelpers
 	)
 from mcp.types import Tool
-from protege_agent_core.models import ModelConfig
+from agent_template.models import ModelConfig
 from agents import Runner, Agent, ModelSettings
 from dotenv import load_dotenv
 from pathlib import Path
-from protege_agent_core.jsonfilesession import JsonFileSession
+from agent_template.jsonfilesession import JsonFileSession
 from pathlib import Path
 from typing import Any
-from protege_agent_core.utils import get_openai_model, utc_now, MCP_TIMEOUT, MAX_TURNS, WARN_BEFORE
-from protege_agent_core.agent_utils import (create_agent, create_mcp_streamable)
-from protege_agent_core.hooks.context_size_hook import (ContextSizeHooks)
-from protege_agent_core.hooks.multi_run_hooks import MultiRunHooks
-from protege_agent_core.hooks.context_trimming_hook import ContextTrimmingHook
+from agent_template.utils import get_openai_model, utc_now, MCP_TIMEOUT, MAX_TURNS, WARN_BEFORE
+from agent_template.agent_utils import (create_agent, create_mcp_streamable)
+from agent_template.hooks.context_size_hook import (ContextSizeHooks)
+from agent_template.hooks.multi_run_hooks import MultiRunHooks
+from agent_template.hooks.context_trimming_hook import ContextTrimmingHook
 
 import asyncio
 import json

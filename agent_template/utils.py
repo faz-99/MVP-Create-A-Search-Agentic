@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional
 from dotenv import load_dotenv
 from agents import OpenAIResponsesModel
 from openai import AsyncOpenAI
-from protege_agent_core.api.request import ChatRequest
+from agent_template.api.request import ChatRequest
 import asyncio
 import httpx
 import logging

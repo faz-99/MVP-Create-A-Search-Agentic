@@ -1,7 +1,7 @@
 import json
 import os 
 import re
-from protege_agent_core.utils import (append_worklog_entry, utc_now, update_artifact_index, parse_json)
+from agent_template.utils import (append_worklog_entry, utc_now, update_artifact_index, parse_json)
 from agents.extensions import ( ToolOutputTrimmer )
 from pathlib import Path
 from typing import Any

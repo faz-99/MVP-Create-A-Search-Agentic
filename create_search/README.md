@@ -31,7 +31,7 @@ create_search/
     claude_loop.py     own loop on the Anthropic SDK (Bedrock), removable later
 api/server.py          FastAPI: /api/create-search (SSE), /stop, /run, /models, /tools
 api/static/index.html  test page served at /
-protege_agent_core/    Intive's agent template, copied unchanged (docs in docs/agent-template/)
+agent_template/    Intive's agent template, copied unchanged (docs in docs/agent-template/)
 tests/                 live MCP checks; loops tested with scripted models
 ```
 

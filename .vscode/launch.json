@@ -14,7 +14,7 @@
         "TMP": "D:/NBS Projects/_claude_tmp/temp",
         "PYTHONIOENCODING": "utf-8"
       },
-      "justMyCode": false,
+      "justMyCode": true,
       "console": "integratedTerminal"
     },
     {

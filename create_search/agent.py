@@ -1,16 +1,16 @@
-"""Create Search on Intive's ProtegeBaseAgent (protege_agent_core, kept as shipped)."""
+"""Create Search on Intive's ProtegeBaseAgent (agent_template, kept as shipped)."""
 
 import os
 from typing import Any, AsyncIterator, Iterable
 
-from protege_agent_core import utils as template_utils
+from agent_template import utils as template_utils
 
 # base_agent fetches MODELS_SECRETS at import; without it (local runs) mark keys loaded so it skips.
 if not os.getenv("MODELS_SECRETS"):
     template_utils.keys.setdefault("openai", {})
 
-from protege_agent_core.base_agent import ProtegeBaseAgent  # noqa: E402
-from protege_agent_core.models import AgentConfig, AgentRequest, McpConfig  # noqa: E402
+from agent_template.base_agent import ProtegeBaseAgent  # noqa: E402
+from agent_template.models import AgentConfig, AgentRequest, McpConfig  # noqa: E402
 
 from create_search import config  # noqa: E402
 from create_search.run import create_search  # noqa: E402

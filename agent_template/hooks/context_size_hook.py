@@ -6,8 +6,8 @@ from agents.run_context import RunContextWrapper
 from agents.run_internal.turn_preparation import get_handoffs
 from agents.models.openai_responses import Converter
 from agents.items import TResponseInputItem
-from protege_agent_core.tracking_service import publish_message
-from protege_agent_core.utils import utc_now, env_flag, parse_json, update_artifact_index
+from agent_template.tracking_service import publish_message
+from agent_template.utils import utc_now, env_flag, parse_json, update_artifact_index
 from pathlib import Path
 from typing import Any
 import sys 

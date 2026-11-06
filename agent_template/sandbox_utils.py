@@ -9,8 +9,8 @@ if sys.platform != "win32":
 	from .persisting_tool_filter import PersistingToolOutputFilter
 from pathlib import Path
 from dotenv import load_dotenv
-from protege_agent_core.sandbox_tools import (resolve_outputs_path, create_workspace_tools, create_chat_completion_safe_tools)
-from protege_agent_core.utils import utc_now, env_flag
+from agent_template.sandbox_tools import (resolve_outputs_path, create_workspace_tools, create_chat_completion_safe_tools)
+from agent_template.utils import utc_now, env_flag
 from typing import Any
 import json
 import os

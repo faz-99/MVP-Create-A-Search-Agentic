@@ -1,5 +1,5 @@
-from protege_agent_core.tracking_service import publish_message
-from protege_agent_core.utils import utc_now
+from agent_template.tracking_service import publish_message
+from agent_template.utils import utc_now
 from dotenv import load_dotenv
 import logging
 import os

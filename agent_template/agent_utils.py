@@ -1,8 +1,8 @@
 from agents import ( Agent, ModelSettings)
 from agents.mcp import MCPServerStreamableHttp
 from agents.model_settings import ModelSettings
-from protege_agent_core.utils import MCP_TIMEOUT, get_openai_model
-from protege_agent_core.shared_transport import pooled_client_factory
+from agent_template.utils import MCP_TIMEOUT, get_openai_model
+from agent_template.shared_transport import pooled_client_factory
 import httpx
 
 
