@@ -33,8 +33,7 @@ services:
     environment:
       APP_HOST: "0.0.0.0"
       APP_PORT: "8080"
-      # api.server:app is the agentic Create Search (create_search/). Set
-      # APP_MODULE=ui.server:app in .env to serve the old POC instead.
+      # api.server:app is the agentic Create Search (create_search/).
       APP_MODULE: "${APP_MODULE:-api.server:app}"
       # Anything but "prod" keeps the API docs at /docs and lets requests without an
       # lna cookie/header fall back to LEXIS_SSO_COOKIE. With "prod", every request
@@ -71,7 +70,7 @@ services:
 
     restart: unless-stopped
 
-    # `/` is a static page (in both apps) and does not touch the MCP server, so this
+    # `/` is a static page and does not touch the MCP server, so this
     # probe reports process health without depending on an upstream that is known
     # to return intermittent 503s from unhealthy pods. Probing /api/tools instead
     # would mark the container unhealthy for someone else's outage.

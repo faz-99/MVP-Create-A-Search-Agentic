@@ -55,9 +55,6 @@ The keys are read from Secrets Manager at runtime, the same way agentv4 reads th
 and never written to disk. The instance role needs `secretsmanager:GetSecretValue`
 on that secret. Claude needs nothing extra: it uses Bedrock through the same role.
 
-`AWS_BEARER_TOKEN_BEDROCK` / `OPENAI_BASE_URL` are only used by the old POC
-(`APP_MODULE=ui.server:app`).
-
 ---
 
 ## 2. AWS credentials (Bedrock)
@@ -235,8 +232,8 @@ aws s3 ls --recursive s3://nbs-prod-backup/create_search_agent/ --profile intell
 ```
 
 Confirm `.env` is absent and `Dockerfile`, `docker-compose.yml`,
-`docker-entrypoint.sh`, `requirements.txt`, `create_search/`, `api/`, `tests/`,
-`prompts/`, `shared/`, `ui/` are all present.
+`docker-entrypoint.sh`, `requirements.txt`, `create_search/`, `api/`, `agent_template/`
+and `tests/` are all present.
 
 ### 2. Pull on the server
 
@@ -416,7 +413,7 @@ We saw this exact message when the drive holding TEMP had 0 bytes free.
 
 **Claude fails with `not authorized to perform: bedrock-mantle:CreateInference`**
 The Claude loop uses Bedrock's Messages API (Mantle), a different IAM action from the
-`bedrock:InvokeModel` the POC used. Grant the instance role `bedrock-mantle:CreateInference`
+`bedrock:InvokeModel` used by the legacy path. Grant the instance role `bedrock-mantle:CreateInference`
 in the region, or switch back to the legacy path by setting `CLAUDE_BACKEND=bedrock-invoke`
 and a `us.anthropic.*` inference-profile ID in `DEFAULT_CLAUDE_MODEL`. The old default
 `us.anthropic.claude-sonnet-4-20250514-v1:0` has reached end of life and returns 404.
@@ -445,8 +442,8 @@ resolve — on Windows, confirm Docker Desktop has file sharing enabled for the
 drive holding your user profile.
 
 **`ValidationException: on-demand throughput isn't supported`**
-A Bedrock model id is missing its `us.` inference-profile prefix. Anthropic ids
-need it; `openai.gpt-oss-*` ids must **not** have it. See `shared/config.py`.
+With `CLAUDE_BACKEND=bedrock-invoke`, the model id needs its `us.` inference-profile
+prefix (`us.anthropic.*`). The default `bedrock` backend uses `anthropic.*` ids.
 
 **Container is `Up` but never `(healthy)`**
 The healthcheck probes `/` on 8080 *inside* the container, which is unaffected by the host port. Check the app actually started:

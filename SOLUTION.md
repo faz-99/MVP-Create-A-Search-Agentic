@@ -95,9 +95,6 @@ sequenceDiagram
 | `create_search/loops/claude_loop.py` | Own loop on the Anthropic SDK via Bedrock (can be removed later) |
 | `create_search/clients.py` | MCP connection (pooled HTTP/2, `lna` header); OpenAI keys from Secrets Manager; Claude client |
 
-The old POC (`shared/`, `agent_*`, `ui/`) still sits beside it, unchanged, and can be
-served instead with `APP_MODULE=ui.server:app`.
-
 ## 4. Guardrails
 
 All guardrails are enforced in code. The prompt asks the model to be economical; the
@@ -218,5 +215,4 @@ Run, and a rejected edited payload.
 
 - **First real model run** happens on the deploy host (needs `MODELS_SECRETS` and Bedrock access).
 - **No analysis endpoint yet.** The page has no Analyze button; analysis instructions are returned for the existing analysis API to use.
-- **The POC is still in the repo.** Remove `shared/`, `agent_*` and `ui/` once the new agent matches it.
 - **Watch the drift warnings.** The server has renamed tools before; `SEARCH_TOOLS` in `create_search/toolset.py` is the list to update.

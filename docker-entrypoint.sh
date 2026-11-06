@@ -2,16 +2,15 @@
 # =============================================================================
 # Container entrypoint — runs as the `searchagent` user (UID 1000).
 #
-# Starts the Create Search API and its test page (api.server:app). Set
-# APP_MODULE=ui.server:app to serve the old POC instead. Captured runs are written
-# to /app/out, which docker-compose mounts from the host so history survives rebuilds.
+# Starts the Create Search API and its test page (api.server:app). Captured runs are
+# written to /app/out, which docker-compose mounts from the host so history survives rebuilds.
 #
 # `exec "$@"` lets you override the command (e.g. run the CLI instead of the
 # server) while still getting tini as PID 1:
 #   docker compose run --rm create-search python -m create_search "8-Ks of Apple"
 #
 # The guard on "[" catches a common Docker mistake — an unquoted JSON-style CMD
-# such as `CMD [uvicorn, ui.server:app]` makes /bin/sh try to run "[uvicorn," and
+# such as `CMD [uvicorn, api.server:app]` makes /bin/sh try to run "[uvicorn," and
 # exit 127. Rather than fail obscurely, fall through to the known-good command.
 # =============================================================================
 set -euo pipefail

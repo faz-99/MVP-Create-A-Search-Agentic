@@ -2,8 +2,7 @@
 # AI Create Search — Dockerfile
 # =============================================================================
 # Builds a self-contained image running the Create Search API (api.server:app,
-# the agentic create_search/ package) and its test page. The old POC UI is in the
-# same image and can be served instead with APP_MODULE=ui.server:app.
+# the agentic create_search/ package) and its test page.
 #
 # Build:  docker compose build
 # Run:    docker compose up -d
@@ -45,7 +44,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY --chown=searchagent:searchagent . /app/
 
 # Captured runs land here. Mounted as a volume in docker-compose.yml so run
-# history survives rebuilds; both apps write to a relative "out/" path, which
+# history survives rebuilds; the app writes to a relative "out/" path, which
 # resolves to /app/out given WORKDIR. /app/storage holds stop requests for
 # running searches (create_search/utils.py).
 RUN mkdir -p /app/out /app/storage && chown -R searchagent:searchagent /app

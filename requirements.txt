@@ -1,43 +1,22 @@
-# Pinned to lower bounds matching the versions this was verified against locally.
-# Verified: boto3 1.37.20, jsonschema 4.23.0, fastapi 0.115.13, uvicorn 0.34.3,
-# httpx 0.28.1, python-dotenv 1.0.1, openai 2.49.0.
-
-# Bedrock (Converse) — the primary model path for both legs. Absent from an
-# earlier version of this file, which would have produced an image that imported
-# fine locally and failed in the container.
-boto3>=1.37.0
-
-# OpenAI SDK — used against the AWS-hosted OpenAI-compatible endpoint on the
-# deploy target (chat.completions). Unused locally, where the OpenAI leg falls
-# back to Bedrock.
+# Agent runtime (same versions as agentv4)
+openai-agents==0.19.4   # OpenAI loop and the MCP client
 openai>=1.60.0
+anthropic==0.120.2      # Claude loop
+httpx[http2]>=0.27.0    # pooled HTTP/2 transport for MCP
+boto3>=1.37.0           # Secrets Manager (OpenAI keys)
 
-# MCP client transport. The http2 extra is needed by create_search's pooled transport.
-httpx[http2]>=0.27.0
+# Created-search validation against the live tool schema
+jsonschema>=4.23.0
 
-# create_search/ (the agentic Create Search): same versions as agentv4.
-#   openai-agents  — the OpenAI loop and the MCP client both loops use
-#   anthropic      — the Claude loop (AsyncAnthropicBedrock, as agentv4)
-openai-agents==0.19.4
-anthropic==0.120.2
-#   truststore     — USE_SYSTEM_CERTS=1: verify TLS against the OS store, for laptops
-#                    behind a TLS-inspecting proxy. Off by default (the server needs none).
+# API
+fastapi>=0.115.0
+uvicorn>=0.32.0
+pydantic>=2.10.0
+
+# Config: .env locally; USE_SYSTEM_CERTS=1 trusts the OS cert store (TLS inspection)
+python-dotenv>=1.0.0
 truststore>=0.10.0
 
 # agent_template (Intive template): tracking_service and protege_base_service
 pika==1.4.4
 async-lru==2.4.0
-
-# Validates a created search against the live tool schema before it can be run
-jsonschema>=4.23.0
-
-# UI
-fastapi>=0.115.0
-uvicorn>=0.32.0
-pydantic>=2.10.0
-
-# Loads .env locally; in the container the values come from env_file instead
-python-dotenv>=1.0.0
-
-# NOTE: the POC legs (shared/) still reach Claude through Bedrock Converse and do
-# not import `anthropic`; only create_search/ does.
