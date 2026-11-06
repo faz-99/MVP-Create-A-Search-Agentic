@@ -1,11 +1,6 @@
 """Entry point: create one search from a natural-language request.
 
-    async for ev in create_search(query, provider="openai", apps=["SF", "AOE"], token=lna):
-        ...
-
-Opens the MCP connection, selects the tool bundles, runs the chosen loop, and always
-finishes with `usage`, `metrics` and `done` (or `agenterror`). The `done` message is the
-CreatedSearch dict, which is the only thing the UI needs to load the search.
+Always ends with usage, metrics and done (CreatedSearch dict), or agenterror.
 """
 
 import json
@@ -29,7 +24,6 @@ LOOPS = {"openai": openai_loop.run_loop, "claude": claude_loop.run_loop}
 
 
 def _check_query(query: str) -> str | None:
-    """Input triage before any model call: reject empty or meaningless requests."""
     text = (query or "").strip()
     if not text:
         return "The request is empty. Describe the documents you want to find."
@@ -38,24 +32,14 @@ def _check_query(query: str) -> str | None:
     return None
 
 
-async def create_search(
-    query: str,
-    *,
-    provider: str = "openai",
-    apps: Iterable[str] | None = None,
-    token: str = "",
-    model: str | None = None,
-    effort: str = "medium",
-    conversation_id: str | None = None,
-    stop_key=None,
-) -> AsyncIterator[Event]:
+async def create_search(query: str, *, provider: str = "openai", apps: Iterable[str] | None = None, token: str = "",
+                        model: str | None = None, effort: str = "medium", conversation_id: str | None = None,
+                        stop_key=None) -> AsyncIterator[Event]:
     conversation_id = conversation_id or uuid.uuid4().hex
-    loop = LOOPS.get(provider)
-    if loop is None:
+    if (loop := LOOPS.get(provider)) is None:
         yield event("agenterror", f"Unknown provider '{provider}'. Use one of: {', '.join(LOOPS)}.")
         return
-    problem = _check_query(query)
-    if problem:
+    if problem := _check_query(query):
         yield event("agenterror", problem)
         return
     try:
@@ -64,7 +48,6 @@ async def create_search(
         yield event("agenterror", str(exc))
         return
 
-    token = token or config.dev_token()
     recorder = RunRecorder(provider, model or "", query, selected_apps)
     pending: list[Event] = []
 
@@ -73,50 +56,32 @@ async def create_search(
         pending.clear()
         return out
 
-    result = None
+    result, error = None, None
     try:
-        async with open_mcp(token, conversation_id) as server:
+        async with open_mcp(token or config.dev_token(), conversation_id) as server:
             available = await list_tool_dicts(server)
             for problem in drift(available):
                 yield event("warning", f"Tool classification: {problem}")
             toolset = select_tools(available, selected_apps)
-            yield event(
-                "status",
-                f"{len(toolset.tools)} tools from {', '.join(selected_apps)} + shared lookups",
-            )
+            yield event("status", f"{len(toolset.tools)} tools from {', '.join(selected_apps)} + shared lookups")
 
             executor = ToolExecutor(server, toolset, pending.append, recorder)
             stopped = False
-            async for ev in loop(
-                executor=executor,
-                instructions=build_instructions(selected_apps),
-                query=query,
-                model=model,
-                effort=effort,
-                recorder=recorder,
-                drain=drain,
-                stop_key=stop_key,
-                conversation_id=conversation_id,
-            ):
+            async for ev in loop(executor=executor, instructions=build_instructions(selected_apps), query=query, model=model,
+                                 effort=effort, recorder=recorder, drain=drain, stop_key=stop_key, conversation_id=conversation_id):
                 yield ev
                 if ev["kind"] == "stop":
                     stopped = True
                     break
             for ev in drain():
                 yield ev
-
-            result = executor.result(
-                "stopped on request" if stopped else "run limit reached without a submitted search"
-            )
+            result = executor.result("stopped on request" if stopped else "run limit reached without a submitted search")
     except Exception as exc:
         logger.exception("create_search failed: %s", conversation_id)
         error = f"{type(exc).__name__}: {exc}"
-    else:
-        error = None
     finally:
         clear_stop(stop_key)
-        # Never raises; a lost capture must not cost the result.
-        recorder.write(result.to_dict() if result else None)
+        recorder.write(result.to_dict() if result else None)  # never raises
 
     if error:
         yield event("agenterror", error)
