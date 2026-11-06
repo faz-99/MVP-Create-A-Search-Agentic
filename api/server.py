@@ -34,7 +34,7 @@ from create_search.core.toolset import is_search_tool, normalize_apps, select_to
 from create_search.core.validate import validate_payload
 from create_search.mcp_connection import close_transport, list_tool_dicts, open_mcp
 from create_search.models import available_models, close_clients
-from create_search.run import create_search
+from create_search.agent import AgentRequest, create_agent
 
 logger = logging.getLogger(__name__)
 PING_SECONDS = 5
@@ -122,16 +122,8 @@ async def create_search_endpoint(body: CreateSearchRequest, req: Request):
     token = get_lna_value(req)
     run_id = body.Id or ""
     key = stop_key(_user_key(token), run_id) if run_id else None
-    events = create_search(
-        body.Query,
-        provider=body.Provider,
-        apps=body.Apps,
-        token=token,
-        model=body.Model,
-        effort=body.Effort.lower(),
-        conversation_id=run_id or None,
-        stop_key=key,
-    )
+    request = AgentRequest(Prompt=body.Query, ConversationId=run_id, Effort=body.Effort.lower())
+    events = create_agent(token, body.Model).stream_research(request, provider=body.Provider, apps=body.Apps, stop_key=key)
     return StreamingResponse(
         _sse(events),
         media_type="text/event-stream",

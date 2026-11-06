@@ -24,6 +24,10 @@ anthropic==0.120.2
 #                    behind a TLS-inspecting proxy. Off by default (the server needs none).
 truststore>=0.10.0
 
+# protege_agent_core (Intive template): tracking_service and protege_base_service
+pika==1.4.4
+async-lru==2.4.0
+
 # Validates a created search against the live tool schema before it can be run
 jsonschema>=4.23.0
 
