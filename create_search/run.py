@@ -57,8 +57,8 @@ async def create_search(query: str, *, provider: str = "openai", apps: Iterable[
     try:
         async with open_mcp(token or config.dev_token(), conversation_id) as server:
             available = await list_tool_dicts(server)
-            for problem in drift(available):
-                yield event("warning", f"Tool classification: {problem}")
+            for problem in drift(available):  # internal only: server log, not the UI stream
+                logger.warning("Tool classification: %s", problem)
             toolset = select_tools(available, selected_apps)
             yield event("status", f"{len(toolset.tools)} tools from {', '.join(selected_apps)} + shared lookups")
 

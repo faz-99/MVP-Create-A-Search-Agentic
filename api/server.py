@@ -24,7 +24,7 @@ from create_search.toolset import is_search_tool, normalize_apps, select_tools
 from create_search.utils import request_stop, stop_key, validate_payload
 
 PING_SECONDS = 5
-INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+INDEX_HTML = Path(__file__).resolve().parent.parent / "ui" / "index.html"  # test page, served at /
 PROD = config.ENV.lower() == "prod"
 
 

@@ -1,14 +1,15 @@
-"""Which MCP tools the agent sees, bundled by tool-name prefix.
+"""Which MCP tools the agent sees, classified from the live tool list by name.
 
 Classes: search (budgeted, see executor), content (never exposed), lookup (everything else in a bundle).
-SEARCH_TOOLS is explicit so a server rename can't silently change a tool's class; drift() reports it.
+The server sends no tool types, so names decide: dataset searches end in "_search"; shared company_/common_
+tools are lookups. drift() logs tools or apps that no longer fit.
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 APP_BUNDLES: dict[str, tuple[str, ...]] = {  # app key -> tool-name prefixes
-    "SF": ("sec_filings_",), "AOE": ("aoe_",), "CL": ("comment_letters_",), "ECT": ("transcripts_",),
+    "SF": ("sec_filings_",), "AOE": ("agreements_exhibits_",), "CL": ("comment_letters_",), "ECT": ("transcripts_",),
     "SRC": ("securities_regulation_",), "ASG": ("accounting_",), "ESG": ("esg_",), "NAL": ("no_action_letters_",),
     "MA": ("mergers_acquisitions_",), "SEDAR": ("sedar_",), "RO": ("registered_offerings_",), "EO": ("exempt_offerings_",),
     "ENF": ("sec_enforcement_",), "FM": ("firm_memos_",), "ADV": ("adv_registrations_",),
@@ -16,20 +17,13 @@ APP_BUNDLES: dict[str, tuple[str, ...]] = {  # app key -> tool-name prefixes
 SHARED_PREFIXES = ("company_", "common_")
 DEFAULT_APPS = ("SF", "AOE")
 
-SEARCH_TOOLS = frozenset({
-    "sec_filings_search", "aoe_search_agreements_and_exhibits", "comment_letters_search_threads", "transcripts_search",
-    "securities_regulation_search", "accounting_search_standards_guidance", "esg_search_reports_and_governance",
-    "no_action_letters_search", "mergers_acquisitions_search_transactions", "sedar_search_filings", "registered_offerings_search",
-    "exempt_offerings_search", "sec_enforcement_search", "firm_memos_search", "adv_registrations_search",
-})
-SEARCH_NAMED_LOOKUPS = frozenset({"company_search"})  # lookups with "search" in the name
-
 CONTENT_MARKERS = ("_get_full_content", "_get_chunks_range", "_get_semantic_chunks", "_get_section_full_content", "_get_section_semantic_chunks")
 CONTENT_PREFIXES = ("vault_",)
 
 
 def is_search_tool(name: str) -> bool:
-    return name in SEARCH_TOOLS
+    """A dataset search: name ends in "_search" and it isn't a shared lookup (e.g. company_search)."""
+    return name.endswith("_search") and not name.startswith(SHARED_PREFIXES)
 
 
 def is_content_tool(name: str) -> bool:
@@ -80,12 +74,8 @@ def select_tools(available: list[dict[str, Any]], apps: Iterable[str] | None) ->
 
 
 def drift(available: list[dict[str, Any]]) -> list[str]:
-    """Problems with the classification above; empty when clean."""
-    names = {t.get("name", "") for t in available}
-    problems: list[str] = []
-    for name in sorted(n for n in names if not is_content_tool(n)):
-        if app_of(name) is None:
-            problems.append(f"'{name}' has no bundle prefix and is never exposed")
-        elif "search" in name and name not in SEARCH_TOOLS | SEARCH_NAMED_LOOKUPS:
-            problems.append(f"'{name}' looks like a search but is not in SEARCH_TOOLS")
-    return problems + [f"'{n}' is in SEARCH_TOOLS but the server no longer has it" for n in sorted(SEARCH_TOOLS - names)]
+    """Tools no app covers, and apps with no search tool on the server (e.g. a renamed prefix); empty when clean."""
+    names = sorted(t.get("name", "") for t in available)
+    problems = [f"'{n}' has no app prefix and is never exposed" for n in names if not is_content_tool(n) and app_of(n) is None]
+    searchable = {app_of(n) for n in names if is_search_tool(n)}
+    return problems + [f"app '{a}' ({', '.join(p)}) has no search tool on the server" for a, p in APP_BUNDLES.items() if a not in searchable]

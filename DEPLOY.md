@@ -139,8 +139,8 @@ proves the cookie, the network path and the bundles in one call:
 curl "http://127.0.0.1:6073/api/tools?apps=SF,AOE"
 ```
 
-Expect `search_tools` to list `sec_filings_search` and
-`aoe_search_agreements_and_exhibits`, plus 16 lookup tools. A 500 here is the MCP
+Expect `search_tools` to list `agreements_exhibits_search` and
+`sec_filings_search`, plus the SF and AOE lookup tools. A 500 here is the MCP
 connection: an expired cookie or an upstream outage (see the logs).
 
 **c. The model keys load**
@@ -166,11 +166,7 @@ Repeat with `"Provider":"claude"` to check Bedrock.
 
 ```cmd
 docker compose run --rm create-search python -m create_search "8-Ks of Apple filed this year"
-docker compose run --rm create-search python -m tests.test_executor_live
 ```
-
-`test_executor_live` exercises the MCP tools without any model call, so it isolates
-credentials and network from model problems.
 
 ---
 
@@ -232,8 +228,8 @@ aws s3 ls --recursive s3://nbs-prod-backup/create_search_agent/ --profile intell
 ```
 
 Confirm `.env` is absent and `Dockerfile`, `docker-compose.yml`,
-`docker-entrypoint.sh`, `requirements.txt`, `create_search/`, `api/`, `agent_template/`
-and `tests/` are all present.
+`docker-entrypoint.sh`, `requirements.txt`, `create_search/`, `api/`, `ui/` and
+`agent_template/` are all present.
 
 ### 2. Pull on the server
 

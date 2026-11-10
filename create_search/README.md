@@ -30,9 +30,8 @@ create_search/
     openai_loop.py     OpenAI Agents SDK, Responses API (long-term runtime)
     claude_loop.py     own loop on the Anthropic SDK (Bedrock), removable later
 api/server.py          FastAPI: /api/create-search (SSE), /stop, /run, /models, /tools
-api/static/index.html  test page served at /
-agent_template/    Intive's agent template, copied unchanged (docs in docs/agent-template/)
-tests/                 live MCP checks; loops tested with scripted models
+ui/index.html          test page (served by the API at /)
+agent_template/        Intive's agent template (docs in docs/agent-template/)
 ```
 
 ## How a request runs
@@ -40,8 +39,8 @@ tests/                 live MCP checks; loops tested with scripted models
 1. Input check (empty or wordless requests are rejected before any model call).
 2. MCP `tools/list`, then `select_tools`: shared `company_*` / `common_*` lookups plus
    the bundles for the requested apps (default SF, AOE; `ALL` for every bundle).
-   Document-content tools are never exposed. `drift()` warns when the server renames
-   or adds a tool the classification does not cover.
+   Search tools are found from the live list by name (ending in `_search`). Document-content
+   tools are never exposed. `drift()` logs tools or apps that no longer match a prefix.
 3. The loop runs the model. Every tool call goes through `ToolExecutor`:
    - lookups: arguments validated against the schema, output cut at `MAX_LOOKUP_CHARS`;
    - searches: at most `MAX_SEARCH_RUNS`, `pageSize` clamped to `SEARCH_PREVIEW_ROWS`,

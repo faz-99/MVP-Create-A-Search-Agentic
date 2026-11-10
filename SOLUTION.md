@@ -64,14 +64,16 @@ sequenceDiagram
 ```
 
 1. **Input check.** Empty or wordless requests are rejected before any model call.
-2. **Tool selection.** The server advertises one flat list (73 tools today). Bundles
-   are built from the tool-name prefix: the shared `company_*` / `common_*` lookups,
-   plus one bundle per requested app (default **SF + AOE**; `ALL` for every bundle).
-   Tools that read document content (`*_get_full_content`, `vault_*`, ...) are never
-   exposed. SF + AOE gives the model 18 tools, about 12k tokens of schema, compared
-   with about 37k for all 73.
-3. **Drift check.** If the server renames or adds a tool that the classification
-   does not cover, the run emits a warning instead of silently changing behaviour.
+2. **Tool selection.** The server advertises one flat list (76 tools today) with no
+   tool types, so tools are classified from the live list by name. Bundles come from
+   the tool-name prefix: the shared `company_*` / `common_*` lookups, plus one bundle
+   per requested app (default **SF + AOE**; `ALL` for every bundle). Dataset searches
+   are the tools ending in `_search` (shared lookups such as `company_search` excepted),
+   so new or renamed searches are picked up automatically. Tools that read document
+   content (`*_get_full_content`, `vault_*`, ...) are never exposed. SF + AOE gives
+   the model 18 tools instead of all 76.
+3. **Drift check.** Tools that no app prefix covers, and apps whose prefix matches
+   no search tool (a renamed prefix), are written to the server log.
 4. **Model loop.** The model calls tools until it submits. Every call goes through the
    shared `ToolExecutor` (section 4).
 5. **Result.** The stream ends with `usage`, `metrics` and `done`. The `done` message
@@ -82,7 +84,7 @@ sequenceDiagram
 | Path | Role |
 |---|---|
 | `api/server.py` | FastAPI app: SSE endpoint, stop, run, models, tools, health; serves the test page |
-| `api/static/index.html` | Test page: request, live strategy/reasoning/tool calls/steps, editable payload, Run |
+| `ui/index.html` | Test page (served by the API at `/`): request, live strategy/reasoning/tool calls/steps, editable payload, Run |
 | `create_search/agent.py` | `CreateSearchAgent`, subclass of Intive's `ProtegeBaseAgent`; `stream_research` runs our loops |
 | `agent_template/` | Intive's agent template, copied unchanged; only the base class is used for now |
 | `create_search/run.py` | Entry point `create_search(query, provider, apps, token, ...)`; picks the loop |
@@ -199,20 +201,8 @@ Docker, same image and port as before: `docker compose up -d --build`, published
 host port **6073**. The container starts `api.server:app`. Full steps, smoke tests
 and troubleshooting are in [DEPLOY.md](DEPLOY.md).
 
-## 10. Testing
-
-| Test | What it proves |
-|---|---|
-| `python -m tests.test_executor_live` | Real MCP calls without a model: lookups, search budget, preview, dedupe, argument rejection, submit validation, fallback |
-| `python -m tests.test_claude_loop_scripted` | Claude loop end to end with a scripted model: thinking passed back, caching set, rejected submit returned as an error |
-| `python -m tests.test_openai_loop_scripted` | OpenAI loop end to end with a scripted model: submit reminder, run ends on an accepted submit |
-
-All three pass against the live MCP server. The test page was also checked in a
-browser with the scripted Claude model: streaming, strategy, steps, created search,
-Run, and a rejected edited payload.
-
-## 11. Open items
+## 10. Open items
 
 - **First real model run** happens on the deploy host (needs `MODELS_SECRETS` and Bedrock access).
 - **No analysis endpoint yet.** The page has no Analyze button; analysis instructions are returned for the existing analysis API to use.
-- **Watch the drift warnings.** The server has renamed tools before; `SEARCH_TOOLS` in `create_search/toolset.py` is the list to update.
+- **Watch the drift warnings in the server log.** Search tools are found from the live list automatically; if the server renames an app's prefix, update `APP_BUNDLES` in `create_search/toolset.py`.

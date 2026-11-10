@@ -22,7 +22,7 @@ template (`agent_template/`). Architecture and design: [SOLUTION.md](SOLUTION.md
 
 ```
 api/server.py               FastAPI app: endpoints, lna auth, SSE streaming
-api/static/index.html       test page served at /
+ui/index.html               test page (served by the API at /)
 create_search/
   agent.py                  CreateSearchAgent (inherits agent_template's ProtegeBaseAgent)
   run.py                    pipeline: input check, tool selection, loop, final events
@@ -36,7 +36,6 @@ create_search/
   loops/openai_loop.py      OpenAI Agents SDK loop (Responses API)
   loops/claude_loop.py      Claude loop on the Anthropic SDK
 agent_template/             Intive's agent template (base class and helpers)
-tests/                      live MCP and scripted-model tests
 Dockerfile, docker-compose.yml, docker-entrypoint.sh
 ```
 
@@ -132,16 +131,6 @@ Event kinds: `status`, `strategy`, `reasoning`, `trace`, `step`, `warning`, `usa
 | `MAX_TURNS`, `WARN_BEFORE`, `MAX_TOOL_CALLS` | 20, 3, 40 | Loop limits |
 | `MAX_SEARCH_RUNS`, `SEARCH_PREVIEW_ROWS`, `MAX_LOOKUP_CHARS` | 5, 5, 6000 | Executor limits |
 | `CAPTURE_DIR`, `STORAGE_PATH` | `out`, `storage` | Run captures, stop files |
-
-## Tests
-
-Need a valid `LEXIS_SSO_COOKIE` and a reachable MCP server; no model calls are made.
-
-```powershell
-python -m tests.test_executor_live          # executor against the live MCP server
-python -m tests.test_claude_loop_scripted   # Claude loop with a scripted model
-python -m tests.test_openai_loop_scripted   # OpenAI loop with a scripted model
-```
 
 ## Deployment
 
